@@ -126,10 +126,15 @@ function openDetail(item){
   d.classList.remove("hidden");
 
   d.innerHTML = `
-    <h2>${item.title}</h2>
-    <p>${item.overview || "Keine Beschreibung"}</p>
-    <button onclick="play('${item.file_id}')">▶️ Abspielen</button>
-    <button onclick="closeDetail()">❌ Schließen</button>
+    <div style="text-align:center;">
+      <img src="${item.cover}" style="width:200px;border-radius:10px;">
+      <h2>${item.title}</h2>
+      <p><b>⭐ ${item.rating || "?"}</b></p>
+      <p>${item.overview || "Keine Beschreibung"}</p>
+
+      <button onclick="play('${item.file_id}')">▶️ Abspielen</button>
+      <button onclick="closeDetail()">❌ Schließen</button>
+    </div>
   `;
 }
 
