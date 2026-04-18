@@ -1,26 +1,43 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Meine Filme</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meine Filme</title>
+
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
+<!-- 🔐 LOGIN SCREEN -->
 <div id="login">
   <h2>🔐 Zugriff</h2>
-  <input id="codeInput" placeholder="Code eingeben">
+  <input id="codeInput" type="password" placeholder="Code eingeben">
   <button onclick="checkCode()">Login</button>
 </div>
 
+<!-- 🎬 APP -->
 <div id="app" style="display:none;">
+
+  <!-- HERO -->
   <div id="hero"></div>
-  <input id="search" placeholder="🔍 Suche...">
+
+  <!-- 🔍 SEARCH -->
+  <input id="search" placeholder="🔍 Filme suchen...">
+
+  <!-- 🎭 NAVIGATION (für Kategorien später) -->
+  <div id="nav"></div>
+
+  <!-- 🎞 CONTENT -->
   <div id="rows"></div>
+
+  <!-- 🎬 DETAIL VIEW -->
   <div id="detail" class="hidden"></div>
+
 </div>
 
 <script src="app.js"></script>
+
 </body>
 </html>
