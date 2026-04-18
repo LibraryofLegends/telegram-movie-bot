@@ -27,8 +27,9 @@ body {
 }
 
 /* ROWS */
-.row {
-  margin: 10px;
+.row h3 {
+  font-size: 18px;
+  margin-left: 10px;
 }
 
 .scroll {
