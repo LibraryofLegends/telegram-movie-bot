@@ -3,6 +3,16 @@ const API = "https://film-finder--tlorenzwupperta.replit.app/api/films";
 // 🔐 GEHEIMCODE
 const SECRET = "1234"; // ändern!
 
+const GENRES = {
+  28: "Action",
+  35: "Comedy",
+  27: "Horror",
+  53: "Thriller",
+  18: "Drama",
+  878: "Sci-Fi",
+  12: "Adventure",
+  16: "Animation"
+};
 let all = [];
 
 // LOGIN
