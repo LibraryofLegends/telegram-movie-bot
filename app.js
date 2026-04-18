@@ -67,11 +67,8 @@ function renderRows(){
 
   // 🎭 GENRES
   Object.keys(genreGroups)
-.sort()
-.forEach(g=>{
-  const unique = [...new Map(
-    genreGroups[g].map(m => [m.file_id, m])
-  ).values()];
+.sort((a,b)=>genreGroups[b].length - genreGroups[a].length)
+.forEach(...)
 
   html += row(`🎭 ${g}`, unique.slice(0,15));
 });
