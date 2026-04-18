@@ -53,6 +53,10 @@ body {
   scroll-behavior: smooth;
 }
 
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* CARDS */
 .card {
   min-width: 130px;
