@@ -68,6 +68,23 @@ body {
   border-radius: 12px;
 }
 
+.card {
+  min-width: 130px;
+  transition: 0.25s;
+  cursor: pointer;
+}
+
+.card:hover {
+  transform: scale(1.12);
+  z-index: 2;
+}
+
+.card img {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+}
+
 /* DETAIL VIEW */
 #detail {
   position: fixed;
