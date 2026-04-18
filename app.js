@@ -1,5 +1,18 @@
 const API = "https://film-finder--tlorenzwupperta.replit.app";
+// 🔐 DEIN GEHEIMCODE
+const SECRET = "1234"; // ← ÄNDERN!!
 
+function checkCode(){
+  const input = document.getElementById("codeInput").value;
+
+  if(input === SECRET){
+    document.getElementById("login").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    initApp();
+  } else {
+    alert("Falscher Code");
+  }
+}
 let all = [];
 
 // LOAD DATA
