@@ -42,9 +42,16 @@ function initApp(){
 // HERO
 function renderHero(){
   if(!all.length) return;
-  const m = all[0];
+
+  const m = all[Math.floor(Math.random() * all.length)];
+
   document.getElementById("hero").style.backgroundImage = `url(${m.cover})`;
-  document.getElementById("hero").innerHTML = m.title;
+  document.getElementById("hero").innerHTML = `
+    <div>
+      <h2>${m.title}</h2>
+      <button onclick="play('${m.file_id}')">▶️ Play</button>
+    </div>
+  `;
 }
 
 // ROWS
