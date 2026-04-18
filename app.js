@@ -16,13 +16,15 @@ function checkCode(){
 let all = [];
 
 // LOAD DATA
-fetch(API)
-.then(r=>r.json())
-.then(data=>{
-  all = data;
-  renderHero();
-  renderRows();
-});
+function initApp(){
+  fetch(API)
+  .then(r=>r.json())
+  .then(data=>{
+    all = data;
+    renderHero();
+    renderRows();
+  });
+}
 
 // HERO
 function renderHero(){
