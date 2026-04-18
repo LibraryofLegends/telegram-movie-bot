@@ -8,13 +8,18 @@
 
 <body>
 
-<div id="hero"></div>
+<div id="login">
+  <h2>🔐 Zugriff</h2>
+  <input id="codeInput" placeholder="Code eingeben">
+  <button onclick="checkCode()">Login</button>
+</div>
 
-<input id="search" placeholder="🔍 Filme suchen...">
-
-<div id="rows"></div>
-
-<div id="detail" class="hidden"></div>
+<div id="app" style="display:none;">
+  <div id="hero"></div>
+  <input id="search" placeholder="🔍 Suche...">
+  <div id="rows"></div>
+  <div id="detail" class="hidden"></div>
+</div>
 
 <script src="app.js"></script>
 </body>
