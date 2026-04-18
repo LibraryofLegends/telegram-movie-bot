@@ -75,3 +75,23 @@ button {
   border-radius: 10px;
   border: none;
 }
+
+#login {
+  height: 100vh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+}
+
+#login input {
+  padding:10px;
+  margin:10px;
+  border-radius:10px;
+  border:none;
+}
+
+#login button {
+  padding:10px;
+  border-radius:10px;
+}
