@@ -150,6 +150,14 @@ function play(id){
 // SEARCH
 document.getElementById("search").oninput = e=>{
   const q = e.target.value.toLowerCase();
+
+  if(!q){
+    renderRows();
+    return;
+  }
+
   const f = all.filter(x=>x.title.toLowerCase().includes(q));
-  document.getElementById("rows").innerHTML = row("🔍 Ergebnisse", f);
+
+  document.getElementById("rows").innerHTML =
+    row("🔍 Ergebnisse", f);
 };
