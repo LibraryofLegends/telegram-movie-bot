@@ -42,11 +42,25 @@ function renderRows(){
   const movies = all.filter(x=>x.type==="movie");
   const series = groupSeries(all.filter(x=>x.type==="series"));
 
-  document.getElementById("rows").innerHTML = `
-    ${row("🔥 Neu", all.slice(0,20))}
-    ${row("🎬 Filme", movies)}
-    ${row("📺 Serien", series)}
-  `;
+  const genreGroups = groupByGenre(movies);
+
+  let html = "";
+
+  // 🔥 Neu hinzugefügt
+  html += row("🔥 Neu", all.slice(0,20));
+
+  // 🎬 Filme
+  html += row("🎬 Filme", movies);
+
+  // 📺 Serien
+  html += row("📺 Serien", series);
+
+  // 🎭 GENRES
+  Object.keys(genreGroups).forEach(g=>{
+    html += row(`🎭 ${g}`, genreGroups[g].slice(0,20));
+  });
+
+  document.getElementById("rows").innerHTML = html;
 }
 
 function groupSeries(series){
