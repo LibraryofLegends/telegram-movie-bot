@@ -66,9 +66,15 @@ function renderRows(){
   html += row("📺 Serien", series);
 
   // 🎭 GENRES
-  Object.keys(genreGroups).forEach(g=>{
-    html += row(`🎭 ${g}`, genreGroups[g].slice(0,20));
-  });
+  Object.keys(genreGroups)
+.sort()
+.forEach(g=>{
+  const unique = [...new Map(
+    genreGroups[g].map(m => [m.file_id, m])
+  ).values()];
+
+  html += row(`🎭 ${g}`, unique.slice(0,15));
+});
 
   document.getElementById("rows").innerHTML = html;
 }
