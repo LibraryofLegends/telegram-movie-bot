@@ -39,6 +39,10 @@ body {
   padding: 10px;
 }
 
+.scroll {
+  scroll-behavior: smooth;
+}
+
 /* CARDS */
 .card {
   min-width: 130px;
