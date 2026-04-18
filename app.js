@@ -86,6 +86,24 @@ function row(title,data){
   `;
 }
 
+function groupByGenre(movies){
+  const groups = {};
+
+  movies.forEach(m=>{
+    if(!m.genre_ids) return;
+
+    m.genre_ids.forEach(id=>{
+      const name = GENRES[id];
+      if(!name) return;
+
+      if(!groups[name]) groups[name] = [];
+      groups[name].push(m);
+    });
+  });
+
+  return groups;
+}
+
 // DETAIL VIEW
 function openDetail(item){
   const d = document.getElementById("detail");
