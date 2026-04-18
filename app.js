@@ -133,7 +133,7 @@ function openDetail(item){
     <div style="text-align:center;">
       <img src="${item.cover}" style="width:200px;border-radius:10px;">
       <h2>${item.title}</h2>
-      <p><b>⭐ ${item.rating || "?"}</b></p>
+      <p><b>⭐ ${item.rating || "?"}</b> • ${item.year || ""}</p>
       <p>${item.overview || "Keine Beschreibung"}</p>
 
       <button onclick="play('${item.file_id}')">▶️ Abspielen</button>
