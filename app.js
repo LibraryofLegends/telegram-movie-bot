@@ -94,7 +94,7 @@ function row(title,data){
       <div class="scroll">
         ${data.map(x=>`
           <div class="card" onclick='openDetail(${JSON.stringify(x)})'>
-            <img src="${x.cover || ''}">
+            <img src="${x.cover || 'https://via.placeholder.com/300x450?text=No+Image'}">
           </div>
         `).join("")}
       </div>
