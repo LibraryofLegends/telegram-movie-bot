@@ -1,8 +1,9 @@
 const API = "https://film-finder--tlorenzwupperta.replit.app/api/films";
 
-// 🔐 GEHEIMCODE
+// 🔐 LOGIN
 const SECRET = "1234"; // ändern!
 
+// 🎭 GENRES
 const GENRES = {
   28: "Action",
   35: "Comedy",
@@ -13,33 +14,36 @@ const GENRES = {
   12: "Adventure",
   16: "Animation"
 };
-let all = [];
 
-// LOGIN
+let all = [];
+let currentFilter = "Alle";
+
+// ===== LOGIN =====
 function checkCode(){
   const input = document.getElementById("codeInput").value;
 
   if(input === SECRET){
     document.getElementById("login").style.display = "none";
     document.getElementById("app").style.display = "block";
-    initApp(); // ← erst hier laden!
+    initApp();
   } else {
     alert("Falscher Code");
   }
 }
 
-// 🔥 APP START
+// ===== INIT =====
 function initApp(){
   fetch(API)
   .then(r=>r.json())
   .then(data=>{
     all = data;
     renderHero();
+    renderNav();
     renderRows();
   });
 }
 
-// HERO
+// ===== HERO =====
 function renderHero(){
   if(!all.length) return;
 
@@ -54,35 +58,63 @@ function renderHero(){
   `;
 }
 
-// ROWS
+// ===== NAVIGATION =====
+function renderNav(){
+  const nav = document.getElementById("nav");
+
+  const genreGroups = groupByGenre(all.filter(x=>x.type==="movie"));
+  const genres = Object.keys(genreGroups);
+
+  let buttons = `<div class="nav-btn ${currentFilter==="Alle" ? "active":""}" onclick="setFilter('Alle')">Alle</div>`;
+
+  genres.forEach(g=>{
+    buttons += `<div class="nav-btn ${currentFilter===g ? "active":""}" onclick="setFilter('${g}')">${g}</div>`;
+  });
+
+  nav.innerHTML = buttons;
+}
+
+function setFilter(filter){
+  currentFilter = filter;
+  renderNav();
+  renderRows();
+}
+
+// ===== ROWS =====
 function renderRows(){
-  const movies = all.filter(x=>x.type==="movie");
-  const series = groupSeries(all.filter(x=>x.type==="series"));
+  let data = [...all];
+
+  if(currentFilter !== "Alle"){
+    data = data.filter(m =>
+      m.genre_ids?.some(id => GENRES[id] === currentFilter)
+    );
+  }
+
+  const movies = data.filter(x=>x.type==="movie");
+  const series = groupSeries(data.filter(x=>x.type==="series"));
 
   const genreGroups = groupByGenre(movies);
 
   let html = "";
 
-  // 🔥 Neu hinzugefügt
-  html += row("🔥 Neu", all.slice(0,20));
-
-  // 🎬 Filme
+  html += row("🔥 Neu", data.slice(0,20));
   html += row("🎬 Filme", movies);
-
-  // 📺 Serien
   html += row("📺 Serien", series);
 
-  // 🎭 GENRES
   Object.keys(genreGroups)
-.sort((a,b)=>genreGroups[b].length - genreGroups[a].length)
-.forEach(...)
+    .sort((a,b)=>genreGroups[b].length - genreGroups[a].length)
+    .forEach(g=>{
+      const unique = [...new Map(
+        genreGroups[g].map(m => [m.file_id, m])
+      ).values()];
 
-  html += row(`🎭 ${g}`, unique.slice(0,15));
-});
+      html += row(`🎭 ${g}`, unique.slice(0,15));
+    });
 
   document.getElementById("rows").innerHTML = html;
 }
 
+// ===== GROUP SERIES =====
 function groupSeries(series){
   const g = {};
   series.forEach(s=>{
@@ -91,21 +123,7 @@ function groupSeries(series){
   return Object.values(g);
 }
 
-function row(title,data){
-  return `
-    <div class="row">
-      <h3>${title}</h3>
-      <div class="scroll">
-        ${data.map(x=>`
-          <div class="card" onclick='openDetail(${JSON.stringify(x)})'>
-            <img src="${x.cover || 'https://via.placeholder.com/300x450?text=No+Image'}">
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
+// ===== GROUP GENRES =====
 function groupByGenre(movies){
   const groups = {};
 
@@ -124,7 +142,23 @@ function groupByGenre(movies){
   return groups;
 }
 
-// DETAIL VIEW
+// ===== ROW TEMPLATE =====
+function row(title,data){
+  return `
+    <div class="row">
+      <h3>${title}</h3>
+      <div class="scroll">
+        ${data.map(x=>`
+          <div class="card" onclick='openDetail(${JSON.stringify(x)})'>
+            <img loading="lazy" src="${x.cover || 'https://via.placeholder.com/300x450?text=No+Image'}">
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+// ===== DETAIL VIEW =====
 function openDetail(item){
   const d = document.getElementById("detail");
   d.classList.remove("hidden");
@@ -146,12 +180,12 @@ function closeDetail(){
   document.getElementById("detail").classList.add("hidden");
 }
 
-// PLAY
+// ===== PLAY =====
 function play(id){
   window.location.href = `https://t.me/DEIN_BOT?start=${id}`;
 }
 
-// SEARCH
+// ===== SEARCH =====
 document.getElementById("search").oninput = e=>{
   const q = e.target.value.toLowerCase();
 
@@ -161,6 +195,11 @@ document.getElementById("search").oninput = e=>{
   }
 
   const f = all.filter(x=>x.title.toLowerCase().includes(q));
+
+  if(f.length === 0){
+    document.getElementById("rows").innerHTML = "<p style='padding:10px;'>Keine Filme gefunden</p>";
+    return;
+  }
 
   document.getElementById("rows").innerHTML =
     row("🔍 Ergebnisse", f);
