@@ -172,3 +172,137 @@ function smartTitleSplit(title = "") {
   // Entfernt Klammern am Ende
   return title.replace(/\(.*?\)$/g, "").trim();
 }
+
+// ================= TMDB =================
+
+// 🔥 BASE FETCH (WICHTIG!)
+async function tmdbFetch(url) {
+  try {
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      console.error("TMDB HTTP ERROR:", res.status);
+      return null;
+    }
+
+    return await res.json();
+
+  } catch (err) {
+    console.error("TMDB FETCH ERROR:", err);
+    return null;
+  }
+}
+
+
+// ================= SEARCH =================
+async function searchTMDB(title, type = "movie") {
+  const urlType = type === "tv" ? "tv" : "movie";
+
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/search/${urlType}?api_key=${TMDB_KEY}&query=${encodeURIComponent(title)}&language=de-DE`
+  );
+
+  if (!data?.results?.length) return null;
+
+  return data.results[0];
+}
+
+
+// 🔥 ULTRA SEARCH (verbessert)
+async function multiSearch(title, preferredType = "movie") {
+
+  const clean = title.trim();
+
+  const variants = [
+    clean,
+    clean.split(" ").slice(0, 3).join(" "),
+    clean.split(" ").slice(0, 2).join(" "),
+    clean.split(" ")[0]
+  ].filter(v => v && v.length >= 2);
+
+  const types = preferredType === "tv"
+    ? ["tv", "movie"]
+    : ["movie", "tv"];
+
+  for (const v of variants) {
+    for (const type of types) {
+      const res = await searchTMDB(v, type);
+      if (res) return res;
+    }
+  }
+
+  return null;
+}
+
+
+// ================= DETAILS =================
+async function getDetails(id, type = "movie") {
+  const urlType = type === "tv" ? "tv" : "movie";
+
+  return await tmdbFetch(
+    `https://api.themoviedb.org/3/${urlType}/${id}?api_key=${TMDB_KEY}&append_to_response=credits,release_dates&language=de-DE`
+  );
+}
+
+
+// ================= LISTS =================
+async function getTrending() {
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/trending/all/week?api_key=${TMDB_KEY}&language=de-DE`
+  );
+
+  if (!data?.results) return [];
+
+  return data.results
+    .filter(x => x.media_type === "movie" || x.media_type === "tv")
+    .slice(0, 10);
+}
+
+
+async function getPopular() {
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_KEY}&language=de-DE`
+  );
+
+  return data?.results?.slice(0, 10) || [];
+}
+
+
+async function getByGenre(genreId) {
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_KEY}&with_genres=${genreId}&sort_by=popularity.desc&language=de-DE`
+  );
+
+  return data?.results?.slice(0, 10) || [];
+}
+
+
+// ================= SIMILAR =================
+async function getSimilar(id, type = "movie") {
+  const urlType = type === "tv" ? "tv" : "movie";
+
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/${urlType}/${id}/similar?api_key=${TMDB_KEY}&language=de-DE`
+  );
+
+  return data?.results?.slice(0, 10) || [];
+}
+
+
+// ================= SERIES =================
+async function getSeasons(tvId) {
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/tv/${tvId}?api_key=${TMDB_KEY}&language=de-DE`
+  );
+
+  return data?.seasons || [];
+}
+
+
+async function getEpisodes(tvId, season) {
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/tv/${tvId}/season/${season}?api_key=${TMDB_KEY}&language=de-DE`
+  );
+
+  return data?.episodes || [];
+}
