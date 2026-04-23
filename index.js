@@ -665,3 +665,159 @@ async function sendFileById(chatId, item) {
     });
   }
 }
+
+// ================= START HANDLER =================
+async function handleStart(msg, param) {
+
+  const chatId = msg.chat.id;
+
+  if (param === "netflix" || param === "browse" || param === "menu") {
+    return showNetflixMenu(chatId);
+  }
+
+  // 🔥 TRENDING
+  if (param === "net_trending") {
+    const list = await getTrending();
+    return sendResultsList(chatId, "🔥 Trending:", list, 0);
+  }
+
+  // 🔥 POPULAR
+  if (param === "net_popular") {
+    const list = await getPopular();
+    return sendResultsList(chatId, "📈 Popular:", list, 0);
+  }
+
+  // 🔥 SIMILAR
+  if (param.startsWith("sim_")) {
+    const [, id, typeRaw] = param.split("_");
+    const type = typeRaw === "tv" ? "tv" : "movie";
+
+    const list = await getSimilar(id, type);
+    return sendResultsList(chatId, "🎬 Ähnliche:", list, 0);
+  }
+
+  // 🔥 STREAM / DOWNLOAD
+  if (param.startsWith("str_") || param.startsWith("dl_") || param.startsWith("play_")) {
+    const id = param.replace(/^(str_|dl_|play_)/, "");
+    const item = CACHE.find(x => x.display_id === id);
+    return sendFileById(chatId, item);
+  }
+
+  // 🔥 FALLBACK
+  const item = CACHE.find(x => x.display_id === param);
+
+  if (!item) {
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "❌ Datei nicht gefunden"
+    });
+  }
+
+  return sendFileById(chatId, item);
+}
+
+
+// ================= UPLOAD =================
+async function handleUpload(msg) {
+
+  const chatId = msg.chat.id;
+  const file = msg.document || msg.video;
+
+  if (!file) return;
+
+  const fileName = file.file_name || msg.caption || "";
+  if (!fileName) return;
+
+  const parsed = parseFileName(fileName);
+  const searchBase = cleanTitleAdvanced(parsed.title || fileName);
+  const searchTitle = smartTitleSplit(searchBase) || searchBase;
+
+  const result = await multiSearch(searchTitle, parsed.type);
+
+  if (!result || !result.id) {
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: `❌ Kein Match gefunden\n${sanitizeTelegramText(searchTitle)}`
+    });
+  }
+
+  const details = await getDetails(result.id, result.media_type || parsed.type);
+
+  // 🔥 FALLBACK DETAILS
+  if (!details) {
+    console.error("DETAILS ERROR:", result.id);
+  }
+
+  const db = CACHE;
+
+  // 🔥 SAFE ID GENERATION
+  const lastId = db.length
+    ? Math.max(...db.map(x => parseInt(x.display_id || "0", 10) || 0))
+    : 0;
+
+  const nextId = String((lastId || 0) + 1).padStart(4, "0");
+
+  // 🔥 SERIES SAVE (nur TV)
+  if (parsed.type === "tv") {
+    const seriesKey = parsed.title.toLowerCase().replace(/\s/g, "_");
+
+    if (!SERIES_DB[seriesKey]) SERIES_DB[seriesKey] = {};
+    if (!SERIES_DB[seriesKey][parsed.season]) SERIES_DB[seriesKey][parsed.season] = {};
+
+    SERIES_DB[seriesKey][parsed.season][parsed.episode] = {
+      file_id: file.file_id,
+      display_id: nextId
+    };
+
+    saveSeriesDB(SERIES_DB);
+  }
+
+  const item = {
+    display_id: nextId,
+    file_id: file.file_id,
+    file_type: msg.document ? "document" : "video",
+    tmdb_id: result.id,
+    media_type: result.media_type || parsed.type,
+    title: result.title || result.name
+  };
+
+  db.unshift(item);
+
+  if (db.length > 500) db.length = 500;
+
+  saveDB(db);
+
+  let caption;
+
+  try {
+    caption = buildCard(details, parsed, fileName, item.display_id);
+  } catch (e) {
+    console.error("CARD ERROR:", e);
+    caption = "❌ Fehler beim Erstellen der Karte";
+  }
+
+  await tg("sendPhoto", {
+    chat_id: CHANNEL_ID,
+    photo: getCover(details || {}),
+    caption,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "▶️ Stream", url: playerUrl("str", item.display_id) },
+          { text: "⬇️ Download", url: playerUrl("dl", item.display_id) }
+        ],
+        [
+          {
+            text: "🎬 Ähnliche",
+            url: `https://t.me/${BOT_USERNAME}?start=sim_${item.tmdb_id}_${item.media_type}`
+          }
+        ]
+      ]
+    }
+  });
+
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: "✅ Upload verarbeitet"
+  });
+}
