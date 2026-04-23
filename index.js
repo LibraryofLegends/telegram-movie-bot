@@ -1,19 +1,4 @@
-// ================= DB =================
-function loadDB() {
-  if (!fs.existsSync(DB_FILE)) return [];
-  try {
-    return JSON.parse(fs.readFileSync(DB_FILE, "utf8") || "[]");
-  } catch {
-    return []; // 🔥 verhindert Crash bei kaputter JSON
-  }
-}
 
-let CACHE = loadDB();
-
-function saveDB(data) {
-  CACHE = data;
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
 
 // ================= SERIES DB =================
 const SERIES_DB_FILE = "series.json";
@@ -85,7 +70,6 @@ async function tg(method, body) {
   }
 }
 
-
 // ================= PARSER =================
 function parseFileName(name = "") {
 
@@ -110,7 +94,6 @@ function parseFileName(name = "") {
     title: clean
   };
 }
-
 
 // 🔥 BESSERER CLEANER (wichtig für TMDB Treffer)
 function cleanTitleAdvanced(name = "") {
@@ -138,7 +121,6 @@ function cleanTitleAdvanced(name = "") {
     .replace(/\s+/g, " ")
     .trim();
 }
-
 
 // 🔥 Titel sauber kürzen (bessere Suche)
 function smartTitleSplit(title = "") {
@@ -174,7 +156,6 @@ async function tmdbFetch(url) {
   }
 }
 
-
 // ================= SEARCH =================
 async function searchTMDB(title, type = "movie") {
   const urlType = type === "tv" ? "tv" : "movie";
@@ -187,7 +168,6 @@ async function searchTMDB(title, type = "movie") {
 
   return data.results[0];
 }
-
 
 // 🔥 ULTRA SEARCH (verbessert)
 async function multiSearch(title, preferredType = "movie") {
@@ -215,7 +195,6 @@ async function multiSearch(title, preferredType = "movie") {
   return null;
 }
 
-
 // ================= DETAILS =================
 async function getDetails(id, type = "movie") {
   const urlType = type === "tv" ? "tv" : "movie";
@@ -224,7 +203,6 @@ async function getDetails(id, type = "movie") {
     `https://api.themoviedb.org/3/${urlType}/${id}?api_key=${TMDB_KEY}&append_to_response=credits,release_dates&language=de-DE`
   );
 }
-
 
 // ================= LISTS =================
 async function getTrending() {
@@ -239,7 +217,6 @@ async function getTrending() {
     .slice(0, 10);
 }
 
-
 async function getPopular() {
   const data = await tmdbFetch(
     `https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_KEY}&language=de-DE`
@@ -248,7 +225,6 @@ async function getPopular() {
   return data?.results?.slice(0, 10) || [];
 }
 
-
 async function getByGenre(genreId) {
   const data = await tmdbFetch(
     `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_KEY}&with_genres=${genreId}&sort_by=popularity.desc&language=de-DE`
@@ -256,7 +232,6 @@ async function getByGenre(genreId) {
 
   return data?.results?.slice(0, 10) || [];
 }
-
 
 // ================= SIMILAR =================
 async function getSimilar(id, type = "movie") {
@@ -268,7 +243,6 @@ async function getSimilar(id, type = "movie") {
 
   return data?.results?.slice(0, 10) || [];
 }
-
 
 // ================= SERIES =================
 async function getSeasons(tvId) {
@@ -308,7 +282,6 @@ function toBold(text = "") {
     .join("");
 }
 
-
 // ================= COVER =================
 function getCover(data = {}) {
   if (data?.poster_path) {
@@ -321,7 +294,6 @@ function getCover(data = {}) {
 
   return "https://via.placeholder.com/500x750?text=No+Image";
 }
-
 
 // ================= DETECT =================
 function detectQuality(name = "") {
@@ -347,14 +319,12 @@ function detectSource(name = "") {
   return "-";
 }
 
-
 // ================= UI =================
 function stars(r = 0) {
   const rating = Number(r) || 0;
   const s = Math.round(rating / 2);
   return "⭐".repeat(s) + "☆".repeat(5 - s) + ` (${rating.toFixed(1)})`;
 }
-
 
 // ================= FSK =================
 function getFSK(data = {}) {
@@ -384,7 +354,6 @@ function getFSK(data = {}) {
   }
 }
 
-
 // ================= TAGS =================
 function generateTags(data = {}) {
   const tags = new Set();
@@ -412,7 +381,6 @@ function generateTags(data = {}) {
 
   return [...tags].slice(0, 6).join(" ");
 }
-
 
 // ================= CARD =================
 function buildCard(data, extra = {}, fileName = "", id = "0001") {
@@ -526,7 +494,6 @@ Wähle deinen Bereich 👇`,
     }
   });
 }
-
 
 // 🔥 USER STATE (statt global!)
 const USER_STATE = {};
