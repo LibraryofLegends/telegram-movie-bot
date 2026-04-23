@@ -519,3 +519,149 @@ ${tags}
     1024
   );
 }
+
+// ================= UI / NETFLIX MODE =================
+
+function showNetflixMenu(chatId) {
+  return tg("sendMessage", {
+    chat_id: chatId,
+    text: `🎬 LIBRARY OF LEGENDS
+
+Wähle deinen Bereich 👇`,
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🔥 Trending", callback_data: "net_trending" }],
+        [{ text: "📈 Popular", callback_data: "net_popular" }],
+        [
+          { text: "🎬 Filme A–Z", callback_data: "movies_az" },
+          { text: "📺 Serien", callback_data: "series_menu" }
+        ],
+        [
+          { text: "🔥 Action", callback_data: "genre_28" },
+          { text: "😂 Comedy", callback_data: "genre_35" }
+        ],
+        [{ text: "▶️ Weiter schauen", callback_data: "continue" }]
+      ]
+    }
+  });
+}
+
+
+// 🔥 USER STATE (statt global!)
+const USER_STATE = {};
+
+async function sendResultsList(chatId, heading, list, page = 0, defaultType = "movie") {
+
+  if (!list || !list.length) {
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "❌ Keine Ergebnisse"
+    });
+  }
+
+  const perPage = 4;
+  const start = page * perPage;
+  const slice = list.slice(start, start + perPage);
+
+  // 🔥 PRO USER STATE
+  USER_STATE[chatId] = {
+    list,
+    heading
+  };
+
+  // ================= SEND CARDS (PARALLEL 🔥)
+  await Promise.all(
+    slice.map(m => {
+      const title = sanitizeTelegramText(m.title || m.name || "Unbekannt");
+      const year = (m.release_date || m.first_air_date || "").slice(0, 4);
+
+      return tg("sendPhoto", {
+        chat_id: chatId,
+        photo: getCover(m),
+        caption: `🎬 ${title}${year ? ` (${year})` : ""}`,
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "▶️ Öffnen",
+                callback_data: `search_${m.id}_${m.media_type || defaultType}`
+              }
+            ],
+            [
+              {
+                text: "🔥 Ähnliche",
+                callback_data: `sim_${m.id}_${m.media_type || defaultType}`
+              }
+            ]
+          ]
+        }
+      });
+    })
+  );
+
+  // ================= NAVIGATION =================
+  const nav = [];
+
+  if (page > 0) {
+    nav.push({ text: "⬅️", callback_data: `page_${page - 1}` });
+  }
+
+  if (start + perPage < list.length) {
+    nav.push({ text: "➡️", callback_data: `page_${page + 1}` });
+  }
+
+  const keyboard = [];
+
+  if (nav.length) {
+    keyboard.push(nav);
+  }
+
+  keyboard.push([{ text: "🏠 Menü", callback_data: "netflix" }]);
+
+  return tg("sendMessage", {
+    chat_id: chatId,
+    text: `📄 ${heading} • Seite ${page + 1}`,
+    reply_markup: {
+      inline_keyboard: keyboard
+    }
+  });
+}
+
+
+// ================= FILE SEND =================
+async function sendFileById(chatId, item) {
+  if (!item) {
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "❌ Datei nicht gefunden"
+    });
+  }
+
+  saveHistory(chatId, {
+    id: item.display_id,
+    type: item.media_type
+  });
+
+  try {
+    if (item.file_type === "document") {
+      return tg("sendDocument", {
+        chat_id: chatId,
+        document: item.file_id
+      });
+    }
+
+    return tg("sendVideo", {
+      chat_id: chatId,
+      video: item.file_id,
+      supports_streaming: true
+    });
+
+  } catch (err) {
+    console.error("SEND FILE ERROR:", err);
+
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: "❌ Fehler beim Senden"
+    });
+  }
+}
