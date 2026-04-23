@@ -1128,3 +1128,78 @@ if (body.callback_query) {
 
   return; // 🔥 VERY IMPORTANT
 }
+
+// ================= SEARCH =================
+if (data.startsWith("search_")) {
+  const [, id, typeRaw] = data.split("_");
+  const type = typeRaw === "tv" ? "tv" : "movie";
+
+  const details = await getDetails(id, type);
+
+  // 📺 TV MODE
+  if (type === "tv") {
+    const seriesKey = (details.name || "")
+      .toLowerCase()
+      .replace(/\s/g, "_");
+
+    return tg("sendMessage", {
+      chat_id: chatId,
+      text: `📺 ${details.name}`,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "📺 Staffel öffnen",
+              callback_data: `tv_${seriesKey}`
+            }
+          ],
+          [
+            {
+              text: "🏠 Menü",
+              callback_data: "netflix"
+            }
+          ]
+        ]
+      }
+    });
+  }
+
+  // 🎬 MOVIE MODE (🔥 DAS HAT GEFEHlt)
+  saveHistory(chatId, { id, type });
+
+  return tg("sendPhoto", {
+    chat_id: chatId,
+    photo: getCover(details),
+    caption: buildCard(details, {}, "", id),
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "▶️ Stream", url: playerUrl("str", id) },
+          { text: "⬇️ Download", url: playerUrl("dl", id) }
+        ],
+        [
+          { text: "🔥 Ähnliche", callback_data: `sim_${id}_${type}` }
+        ],
+        [
+          { text: "🏠 Menü", callback_data: "netflix" }
+        ]
+      ]
+    }
+  });
+}
+
+
+// ================= SIMILAR =================
+if (data.startsWith("sim_")) {
+  const [, id, typeRaw] = data.split("_");
+  const type = typeRaw === "tv" ? "tv" : "movie";
+
+  const list = await getSimilar(id, type);
+
+  global.LAST_LIST = list;
+  global.LAST_HEADING = "🎬 Ähnliche:";
+
+  return sendResultsList(chatId, global.LAST_HEADING, list, 0);
+}
+
+return; // 🔥 WICHTIG!
