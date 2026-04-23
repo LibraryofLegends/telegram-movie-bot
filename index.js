@@ -821,3 +821,81 @@ async function handleUpload(msg) {
     text: "✅ Upload verarbeitet"
   });
 }
+
+// ================= SERIES SAVE =================
+if (parsed.type === "tv") {
+
+  const safeTitle = (parsed.title || "unknown")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, "_");
+
+  const season = parsed.season || 1;
+  const episode = parsed.episode || 1;
+
+  if (!SERIES_DB[safeTitle]) SERIES_DB[safeTitle] = {};
+  if (!SERIES_DB[safeTitle][season]) SERIES_DB[safeTitle][season] = {};
+
+  SERIES_DB[safeTitle][season][episode] = {
+    file_id: file.file_id,
+    display_id: nextId
+  };
+
+  saveSeriesDB(SERIES_DB);
+}
+
+
+// ================= ITEM =================
+const item = {
+  display_id: nextId,
+  file_id: file.file_id,
+  file_type: msg.document ? "document" : "video",
+  tmdb_id: result.id,
+  media_type: result.media_type || parsed.type,
+  title: result.title || result.name || parsed.title || "Unbekannt"
+};
+
+db.unshift(item);
+if (db.length > 500) db.length = 500;
+
+saveDB(db);
+
+
+// ================= CARD =================
+let caption;
+
+try {
+  caption = buildCard(details, parsed, fileName, item.display_id);
+} catch (e) {
+  console.error("CARD ERROR:", e);
+  caption = "❌ Fehler beim Erstellen der Karte";
+}
+
+
+// ================= SEND =================
+await tg("sendPhoto", {
+  chat_id: CHANNEL_ID,
+  photo: getCover(details || {}),
+  caption,
+  reply_markup: {
+    inline_keyboard: [
+      [
+        { text: "▶️ Stream", url: playerUrl("str", item.display_id) },
+        { text: "⬇️ Download", url: playerUrl("dl", item.display_id) }
+      ],
+      [
+        {
+          text: "🎬 Ähnliche",
+          url: `https://t.me/${BOT_USERNAME}?start=sim_${item.tmdb_id}_${item.media_type}`
+        }
+      ]
+    ]
+  }
+});
+
+
+// ================= FEEDBACK =================
+await tg("sendMessage", {
+  chat_id: msg.chat.id,
+  text: "✅ Upload verarbeitet"
+});
