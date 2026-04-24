@@ -585,7 +585,7 @@ const safeData = details || result || {};
 
 // ================= CHANNEL POST =================
 await tg("sendPhoto",{
-  chat_id:CHANNEL_ID,
+  chat_id:getTargetChannel(genreIds),
   photo:cover,
   caption:buildCard(safeData, fileName, id),
   reply_markup:{
