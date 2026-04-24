@@ -82,3 +82,51 @@ async function tg(method, body) {
     return { ok: false };
   }
 }
+
+// ================= HELPERS =================
+
+function getCover(data = {}) {
+  if (data?.poster_path) {
+    return `https://image.tmdb.org/t/p/w500${data.poster_path}`;
+  }
+
+  if (data?.backdrop_path) {
+    return `https://image.tmdb.org/t/p/w500${data.backdrop_path}`;
+  }
+
+  return "https://dummyimage.com/500x750/000/fff&text=No+Image";
+}
+
+function getBanner(data = {}) {
+  if(data?.backdrop_path){
+    return `https://image.tmdb.org/t/p/original${data.backdrop_path}`;
+  }
+
+  if(data?.poster_path){
+    return `https://image.tmdb.org/t/p/w780${data.poster_path}`;
+  }
+
+  return "https://dummyimage.com/1280x720/000/fff&text=Library+of+Legends";
+}
+
+function buildStyledCover(title){
+  return `https://dummyimage.com/500x750/000/fff&text=${encodeURIComponent(title)}`;
+}
+
+const CHANNELS = {
+  default: CHANNEL_ID,
+  28: process.env.CHANNEL_ACTION,
+  27: process.env.CHANNEL_HORROR,
+  35: process.env.CHANNEL_COMEDY
+};
+
+function getTargetChannel(genres=[]){
+  for(const g of genres){
+    if(CHANNELS[g]) return CHANNELS[g];
+  }
+  return CHANNELS.default;
+}
+
+function getLocalByGenre(genreId){
+  return CACHE.filter(x => x.genres?.includes(parseInt(genreId)));
+}
