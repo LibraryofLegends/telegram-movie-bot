@@ -444,3 +444,70 @@ async function sendResultsList(chatId, heading, list, page = 0){
     }
   });
 }
+
+// ================= UPLOAD =================
+async function handleUpload(msg){
+
+  const file = msg.document || msg.video;
+  if(!file) return;
+
+  const fileName = file.file_name || "";
+  const parsed = parseFileName(fileName);
+  const clean = cleanTitleAdvanced(parsed.title);
+
+  // 🔥 SEARCH
+  let result = await searchTMDB(clean);
+  
+  if(!result){
+  console.log("❌ TMDB NO MATCH:", clean);
+}
+
+  // 🔥 fallback search (massiv wichtig)
+  if(!result){
+    const short = clean.split(" ").slice(0,2).join(" ");
+    result = await searchTMDB(short);
+  }
+
+  // 🔥 DETAILS (DAS HAT DIR GEFehlt)
+  let details = null;
+
+  if(result && result.id){
+    details = await getDetails(
+      result.id,
+      result.media_type === "tv" ? "tv" : "movie"
+    );
+  }
+  
+  // 🔥 GENRE SAVE
+let genreIds = [];
+
+if(result?.genre_ids){
+  genreIds = result.genre_ids;
+}
+
+  const id = String(Date.now()).slice(-4);
+
+  // 🔥 SERIES SAVE
+  if(parsed.type === "tv"){
+    const key = parsed.title.toLowerCase().replace(/\s/g,"_");
+
+    if(!SERIES_DB[key]) SERIES_DB[key]={};
+    if(!SERIES_DB[key][parsed.season]) SERIES_DB[key][parsed.season]={};
+
+    SERIES_DB[key][parsed.season][parsed.episode]={
+      file_id:file.file_id,
+      display_id:id
+    };
+
+    saveSeriesDB(SERIES_DB);
+  }
+
+  const item={
+  display_id:id,
+  file_id:file.file_id,
+  media_type:result?.media_type || "movie",
+  genres: genreIds
+};
+
+  CACHE.unshift(item);
+  saveDB(CACHE);
