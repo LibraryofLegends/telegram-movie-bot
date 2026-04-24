@@ -130,3 +130,7 @@ function getTargetChannel(genres=[]){
 function getLocalByGenre(genreId){
   return CACHE.filter(x => x.genres?.includes(parseInt(genreId)));
 }
+
+function getLocalByGenre(genreId){
+  return CACHE.filter(x => x.genres?.includes(parseInt(genreId)));
+}
