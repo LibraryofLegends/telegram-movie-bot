@@ -798,14 +798,14 @@ if(data.startsWith("next_") || data.startsWith("prev_")){
   const item = list[newIndex];
 
   const details = await getDetails(item.id, type);
-const safeData = details || item || {};
+  const safeData = details || item || {};
 
-return tg("sendPhoto",{
-  chat_id:chatId,
-  photo:getCover(safeData),
-  caption:buildCard(safeData,"",item.id),
-  reply_markup: buildSwipeNav(item.id,type)
-});
+  return tg("sendPhoto",{
+    chat_id:chatId,
+    photo:getCover(safeData),
+    caption:buildCard(safeData,"",item.id),
+    reply_markup: buildSwipeNav(item.id,type)
+  });
 }
 
   // ================= SEARCH =================
