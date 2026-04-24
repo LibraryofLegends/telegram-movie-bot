@@ -368,3 +368,79 @@ async function buildHomeRows(){
     {title:"😂 Comedy", data:await getByGenre(35)}
   ];
 }
+
+// ================= UI =================
+function showMenu(chatId){
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:`🎬 𝐋𝐈𝐁𝐑𝐀𝐑𝐘 𝐎𝐅 𝐋𝐄𝐆𝐄𝐍𝐃𝐒
+
+Wähle deinen Bereich 👇`,
+    reply_markup:{
+      inline_keyboard:[
+        [{text:"🏠 Home",callback_data:"home"}],
+        [{text:"🔥 Trending",callback_data:"net_trending"}],
+        [{text:"📈 Popular",callback_data:"net_popular"}],
+
+        [
+          {text:"🎬 Filme",callback_data:"browse_movies"},
+          {text:"📺 Serien",callback_data:"browse_series"}
+        ],
+
+        ...buildGenreButtons(),
+
+        [{text:"▶️ Weiter schauen",callback_data:"continue"}]
+      ]
+    }
+  });
+}
+
+async function sendResultsList(chatId, heading, list, page = 0){
+
+  if(!list || !list.length){
+    return tg("sendMessage",{chat_id:chatId,text:"❌ Keine Ergebnisse"});
+  }
+
+  const perPage = 4;
+  const start = page * perPage;
+  const slice = list.slice(start, start + perPage);
+
+  USER_STATE[chatId] = { list, heading };
+
+  for(const m of slice){
+    const title = m.title || m.name || "Unbekannt";
+
+    await tg("sendPhoto",{
+      chat_id:chatId,
+      photo:getCover(m),
+      caption:`🎬 ${title}`,
+      reply_markup:{
+        inline_keyboard:[
+          [{text:"▶️ Öffnen",callback_data:`search_${m.id}_${m.media_type}`}],
+          [{text:"🔥 Ähnliche",callback_data:`sim_${m.id}_${m.media_type}`}]
+        ]
+      }
+    });
+  }
+
+  const nav = [];
+
+  if(page > 0){
+  nav.push({text:"⬅️",callback_data:`page_${page-1}`});
+}
+
+  if(start + perPage < list.length){
+    nav.push({text:"➡️",callback_data:`page_${page+1}`});
+  }
+
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:`📄 ${heading} • Seite ${page+1}`,
+    reply_markup:{
+      inline_keyboard:[
+        ...(nav.length ? [nav] : []),
+        [{text:"🏠 Menü",callback_data:"menu"}]
+      ]
+    }
+  });
+}
