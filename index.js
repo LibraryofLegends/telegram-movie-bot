@@ -511,3 +511,45 @@ if(result?.genre_ids){
 
   CACHE.unshift(item);
   saveDB(CACHE);
+  
+  // ================= COVER FIX =================
+  let cover = getCover(details || result || {});
+
+if(!details && !result){
+  cover = buildStyledCover(parsed.title);
+}
+
+  try{
+    if(!cover || cover.includes("null")) throw new Error();
+    const res = await fetch(cover);
+    if(!res.ok) throw new Error();
+  }catch{
+    cover = "https://dummyimage.com/500x750/000/fff&text=No+Image";
+  }
+
+  // 🔥 FALLBACK FIX (WICHTIG)
+if(!details && result){
+  details = result;
+}
+
+const safeData = details || result || {};
+
+// ================= CHANNEL POST =================
+await tg("sendPhoto",{
+  chat_id:CHANNEL_ID,
+  photo:cover,
+  caption:buildCard(safeData, fileName, id),
+  reply_markup:{
+    inline_keyboard:[
+      [
+        {text:"▶️ Stream",url:playerUrl("play",id)}
+      ]
+    ]
+  }
+});
+
+  return tg("sendMessage",{
+    chat_id:msg.chat.id,
+    text:"✅ Upload verarbeitet"
+  });
+}
