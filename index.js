@@ -167,3 +167,78 @@ function cleanTitleAdvanced(name = "") {
 function detectQuality(n=""){return /4k|2160/i.test(n)?"4K":/1080/.test(n)?"1080p":/720/.test(n)?"720p":"HD";}
 function detectAudio(n=""){return /deutsch|german/i.test(n)?"Deutsch":"EN";}
 function detectSource(n=""){return /bluray/i.test(n)?"BluRay":/web/i.test(n)?"WEB":"-";}
+
+// ================= CARD =================
+function buildCard(data, fileName="", id="0001"){
+
+  const title = (data.title || data.name || "UNBEKANNT").toUpperCase();
+  const year = (data.release_date || data.first_air_date || "").slice(0,4);
+
+  const genres = (data.genres || [])
+    .slice(0,2)
+    .map(g => g.name)
+    .join(" • ");
+
+  const cast = (data.credits?.cast || [])
+    .slice(0,3)
+    .map(c => c.name)
+    .join(" • ") || "-";
+
+  const rating = data.vote_average
+    ? `⭐ ${Math.round(data.vote_average / 2)} / 5 (${data.vote_average.toFixed(1)})`
+    : "⭐ -";
+
+  // 🔞 FSK
+  let fsk = "-";
+  try{
+    const rel = data.release_dates?.results || [];
+    const de = rel.find(r => r.iso_3166_1 === "DE");
+    const cert = de?.release_dates?.find(x => x.certification)?.certification;
+    if(cert) fsk = cert;
+  }catch{}
+
+  const storyRaw = data.overview || "Keine Beschreibung verfügbar.";
+  let story = storyRaw.trim();
+
+  if (story.length > 220) {
+    story = story.slice(0, 220);
+    const cut = story.lastIndexOf(".");
+    if (cut > 100) story = story.slice(0, cut + 1);
+    story += "...";
+  }
+
+  const quality = detectQuality(fileName);
+  const audio = detectAudio(fileName);
+  const source = detectSource(fileName);
+
+  const tags = (data.genres || [])
+    .slice(0,3)
+    .map(g => `#${g.name.replace(/\s/g,"")}`)
+    .join(" ");
+
+  const LINE = "━━━━━━━━━━━━━━━━━━";
+  const SOFT = "──────────────";
+
+  return `${LINE}
+🎬 𝐋𝐈𝐁𝐑𝐀𝐑𝐘 𝐎𝐅 𝐋𝐄𝐆𝐄𝐍𝐃𝐒
+${title}${year ? ` (${year})` : ""}
+${SOFT}
+🔥 ${quality} • ${genres || "-"}
+🎧 ${audio} • 💿 ${source}
+${LINE}
+${rating}
+⛔ FSK ${fsk}
+👥 ${cast}
+${LINE}
+📖 HANDLUNG
+${story}
+${LINE}
+▶️ #${id}
+${SOFT}
+${tags}
+@LibraryOfLegends`;
+}
+
+function playerUrl(mode,id){
+  return `https://t.me/${BOT_USERNAME}?start=${mode}_${id}`;
+}
