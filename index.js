@@ -134,3 +134,36 @@ function getLocalByGenre(genreId){
 function getLocalByGenre(genreId){
   return CACHE.filter(x => x.genres?.includes(parseInt(genreId)));
 }
+
+function parseFileName(name = "") {
+  const clean = name.replace(/[._\-]+/g, " ");
+  const match = clean.match(/S(\d{1,2})E(\d{1,2})/i);
+
+  if (match) {
+    return {
+      type: "tv",
+      title: clean.replace(match[0], "").trim(),
+      season: parseInt(match[1]),
+      episode: parseInt(match[2])
+    };
+  }
+
+  return { type: "movie", title: clean };
+}
+
+function cleanTitleAdvanced(name = "") {
+  return name
+    .replace(/\.(mp4|mkv|avi)$/i, "")
+    .replace(/\b(1080p|720p|2160p|4k|uhd)\b/gi, "")
+    .replace(/\b(x264|x265|h264|h265)\b/gi, "")
+    .replace(/\b(bluray|web|webrip|webdl)\b/gi, "")
+    .replace(/\b(german|deutsch|dual|dl)\b/gi, "")
+    .replace(/S\d{1,2}E\d{1,2}/gi, "")
+    .replace(/[._\-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detectQuality(n=""){return /4k|2160/i.test(n)?"4K":/1080/.test(n)?"1080p":/720/.test(n)?"720p":"HD";}
+function detectAudio(n=""){return /deutsch|german/i.test(n)?"Deutsch":"EN";}
+function detectSource(n=""){return /bluray/i.test(n)?"BluRay":/web/i.test(n)?"WEB":"-";}
