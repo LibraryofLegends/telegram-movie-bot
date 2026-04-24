@@ -307,6 +307,22 @@ function sortAZ(list){
 
 // ================= NETFLIX SYSTEM =================
 
+function buildLocalRows(){
+  return [
+    {title:"🔥 Deine Action Filme", data:getLocalByGenre(28)},
+    {title:"😂 Deine Comedy Filme", data:getLocalByGenre(35)}
+  ];
+}
+
+async function buildHomeRows(){
+  return [
+    {title:"🔥 Trending", data:await getTrending()},
+    {title:"🎬 Beliebt", data:await getPopular()},
+    {title:"🔥 Action", data:await getByGenre(28)},
+    {title:"😂 Comedy", data:await getByGenre(35)}
+  ];
+}
+
 async function showNetflixHome(chatId){
 
   const trending = await getTrending();
@@ -321,6 +337,7 @@ async function showNetflixHome(chatId){
 
   const banner = getBanner(details);
 
+  // 🎬 BIG BANNER
   await tg("sendPhoto",{
     chat_id:chatId,
     photo:banner,
@@ -328,12 +345,14 @@ async function showNetflixHome(chatId){
     reply_markup: buildSwipeNav(first.id, first.media_type)
   });
 
+  // 🌍 TMDB ROWS
   const rows = await buildHomeRows();
 
   for(const row of rows){
     await sendResultsList(chatId,row.title,row.data,0);
   }
 
+  // 💾 LOCAL ROWS
   const localRows = buildLocalRows();
 
   for(const row of localRows){
@@ -351,22 +370,6 @@ async function showNetflixHome(chatId){
       ]
     }
   });
-}
-
-function buildLocalRows(){
-  return [
-    {title:"🔥 Deine Action Filme", data:getLocalByGenre(28)},
-    {title:"😂 Deine Comedy Filme", data:getLocalByGenre(35)}
-  ];
-}
-
-async function buildHomeRows(){
-  return [
-    {title:"🔥 Trending", data:await getTrending()},
-    {title:"🎬 Beliebt", data:await getPopular()},
-    {title:"🔥 Action", data:await getByGenre(28)},
-    {title:"😂 Comedy", data:await getByGenre(35)}
-  ];
 }
 
 // ================= UI =================
