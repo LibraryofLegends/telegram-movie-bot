@@ -304,3 +304,67 @@ function sortAZ(list){
     return A.localeCompare(B);
   });
 }
+
+// ================= NETFLIX SYSTEM =================
+
+async function showNetflixHome(chatId){
+
+  const trending = await getTrending();
+  if(!trending.length) return;
+
+  const first = trending[0];
+
+  const details = await getDetails(
+    first.id,
+    first.media_type === "tv" ? "tv" : "movie"
+  );
+
+  const banner = getBanner(details);
+
+  await tg("sendPhoto",{
+    chat_id:chatId,
+    photo:banner,
+    caption:buildCard(details,"",first.id),
+    reply_markup: buildSwipeNav(first.id, first.media_type)
+  });
+
+  const rows = await buildHomeRows();
+
+  for(const row of rows){
+    await sendResultsList(chatId,row.title,row.data,0);
+  }
+
+  const localRows = buildLocalRows();
+
+  for(const row of localRows){
+    if(row.data.length){
+      await sendResultsList(chatId,row.title,row.data,0);
+    }
+  }
+
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:"🏠 Home",
+    reply_markup:{
+      inline_keyboard:[
+        [{text:"🔄 Refresh",callback_data:"home"}]
+      ]
+    }
+  });
+}
+
+function buildLocalRows(){
+  return [
+    {title:"🔥 Deine Action Filme", data:getLocalByGenre(28)},
+    {title:"😂 Deine Comedy Filme", data:getLocalByGenre(35)}
+  ];
+}
+
+async function buildHomeRows(){
+  return [
+    {title:"🔥 Trending", data:await getTrending()},
+    {title:"🎬 Beliebt", data:await getPopular()},
+    {title:"🔥 Action", data:await getByGenre(28)},
+    {title:"😂 Comedy", data:await getByGenre(35)}
+  ];
+}
