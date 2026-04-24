@@ -242,3 +242,65 @@ ${tags}
 function playerUrl(mode,id){
   return `https://t.me/${BOT_USERNAME}?start=${mode}_${id}`;
 }
+
+// ================= TMDB =================
+async function tmdbFetch(url){
+  try{
+    const res = await fetch(url);
+    return await res.json();
+  }catch{return null;}
+}
+
+async function searchTMDB(title){
+
+  const variants = [
+    title,
+    title.split(" ").slice(0,3).join(" "),
+    title.split(" ").slice(0,2).join(" "),
+    title.split(" ")[0]
+  ].filter(x => x && x.length > 2);
+
+  for(const q of variants){
+
+    const data = await tmdbFetch(
+      `https://api.themoviedb.org/3/search/multi?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=de-DE`
+    );
+
+    if(data?.results?.length){
+      return data.results[0];
+    }
+  }
+
+  return null;
+}
+
+async function getDetails(id,type){
+  return await tmdbFetch(
+    `https://api.themoviedb.org/3/${type}/${id}?api_key=${TMDB_KEY}&append_to_response=credits,release_dates&language=de-DE`
+  );
+}
+
+async function getTrending(){
+  const data = await tmdbFetch(`https://api.themoviedb.org/3/trending/all/week?api_key=${TMDB_KEY}`);
+  return data?.results?.slice(0,10) || [];
+}
+
+async function getPopular(){
+  const data = await tmdbFetch(`https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_KEY}`);
+  return data?.results?.slice(0,10) || [];
+}
+
+async function getByGenre(genreId){
+  const data = await tmdbFetch(
+    `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_KEY}&with_genres=${genreId}`
+  );
+  return data?.results?.slice(0,10) || [];
+}
+
+function sortAZ(list){
+  return list.sort((a,b)=>{
+    const A = (a.title || a.name || "").toLowerCase();
+    const B = (b.title || b.name || "").toLowerCase();
+    return A.localeCompare(B);
+  });
+}
