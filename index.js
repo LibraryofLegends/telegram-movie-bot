@@ -553,3 +553,333 @@ await tg("sendPhoto",{
     text:"✅ Upload verarbeitet"
   });
 }
+
+// ================= WEBHOOK =================
+app.post(`/bot${TOKEN}`, async (req,res)=>{
+  res.sendStatus(200);
+
+  const body = req.body;
+  const msg = body.message;
+
+  try{
+
+    if(body.callback_query){
+
+  const data = body.callback_query.data;
+  const chatId = body.callback_query.message.chat.id;
+
+  await tg("answerCallbackQuery", {
+    callback_query_id: body.callback_query.id
+  });
+  
+  // ================= HOME =================
+if(data === "home"){
+  return showNetflixHome(chatId);
+}
+  
+  // ================= NETFLIX ROWS =================
+if(data === "row_trending"){
+  return sendResultsList(chatId,"🔥 Trending",await getTrending(),0);
+}
+
+if(data === "row_popular"){
+  return sendResultsList(chatId,"🎬 Beliebt",await getPopular(),0);
+}
+  
+  // ================= QUICK NAV =================
+
+if(data === "browse_movies"){
+  const list = await getPopular();
+  return sendResultsList(chatId,"🎬 Filme",list,0);
+}
+
+if(data === "browse_series"){
+  const keys = Object.keys(SERIES_DB);
+
+  if(!keys.length){
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:"❌ Keine Serien vorhanden"
+    });
+  }
+
+  const buttons = keys.map(k => ([
+    {
+      text:`📺 ${k.replace(/_/g," ")}`,
+      callback_data:`tv_${k}`
+    }
+  ]));
+
+  buttons.push([{text:"🏠 Menü",callback_data:"menu"}]);
+
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:"📺 Serien",
+    reply_markup:{inline_keyboard:buttons}
+  });
+}
+
+  // ================= MENU =================
+  if(data === "menu"){
+    return showMenu(chatId);
+  }
+  
+  if(data === "series_menu"){
+
+  const keys = Object.keys(SERIES_DB);
+
+  if(!keys.length){
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:"❌ Keine Serien vorhanden"
+    });
+  }
+
+  const buttons = keys.map(k => ([
+    {
+      text: `📺 ${k.replace(/_/g," ")}`,
+      callback_data:`tv_${k}`
+    }
+  ]));
+
+  buttons.push([{text:"🏠 Menü",callback_data:"menu"}]);
+
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:"📺 Serien auswählen",
+    reply_markup:{inline_keyboard:buttons}
+  });
+}
+
+  // ================= CONTINUE =================
+  if(data === "continue"){
+    const history = readHistory(chatId);
+
+    if(!history.length){
+      return tg("sendMessage",{
+        chat_id:chatId,
+        text:"❌ Kein Verlauf vorhanden"
+      });
+    }
+
+    const last = history[0];
+
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:"▶️ Weiter schauen",
+      reply_markup:{
+        inline_keyboard:[[
+          {text:"🎬 Öffnen",callback_data:`play_${last.id}`}
+        ]]
+      }
+    });
+  }
+
+  // ================= TRENDING =================
+  if(data === "net_trending"){
+    const list = await getTrending();
+    return sendResultsList(chatId,"🔥 Trending",list,0);
+  }
+
+  // ================= POPULAR =================
+  if(data === "net_popular"){
+    const list = await getPopular();
+    return sendResultsList(chatId,"📈 Popular",list,0);
+  }
+  
+  // ================= GENRE =================
+if(data.startsWith("genre_")){
+  const genre = data.split("_")[1];
+  const list = await getByGenre(genre);
+
+  return sendResultsList(chatId,"📂 Kategorie",list,0);
+}
+
+// ================= LOCAL GENRE =================
+if(data.startsWith("genre_local_")){
+  const genre = data.split("_")[2];
+  const list = getLocalByGenre(genre);
+
+  return sendResultsList(chatId,"📂 Deine Filme",list,0);
+}
+
+// ================= A-Z =================
+if(data === "movies_az"){
+  const list = await getPopular();
+  return sendResultsList(chatId,"🔤 A–Z",sortAZ(list),0);
+}
+
+  // ================= PAGINATION =================
+  if(data.startsWith("page_")){
+    const page = parseInt(data.split("_")[1]);
+    const state = USER_STATE[chatId];
+    if(!state) return;
+
+    return sendResultsList(chatId,state.heading,state.list,page);
+  }
+
+  // ================= SIMILAR =================
+  if(data.startsWith("sim_")){
+    const [,id,type] = data.split("_");
+
+    const res = await tmdbFetch(
+      `https://api.themoviedb.org/3/${type}/${id}/similar?api_key=${TMDB_KEY}`
+    );
+
+    return sendResultsList(chatId,"🔥 Ähnliche",res?.results || [],0);
+  }
+  
+  // ================= SWIPE =================
+if(data.startsWith("next_") || data.startsWith("prev_")){
+
+  const [dir,id,type] = data.split("_");
+
+  const state = USER_STATE[chatId];
+  if(!state) return;
+
+  const list = state.list;
+  const index = list.findIndex(x => String(x.id) === id);
+
+  if(index === -1) return;
+
+  const newIndex = dir === "next" ? index+1 : index-1;
+
+  if(!list[newIndex]) return;
+
+  const item = list[newIndex];
+
+  const details = await getDetails(item.id, type);
+const safeData = details || item || {};
+
+return tg("sendPhoto",{
+  chat_id:chatId,
+  photo:getCover(safeData),
+  caption:buildCard(safeData,"",item.id),
+  reply_markup: buildSwipeNav(item.id,type)
+});
+}
+
+  // ================= SEARCH =================
+  if(data.startsWith("search_")){
+  const [,id,type] = data.split("_");
+
+  const details = await getDetails(id,type);
+  const safeData = details || {};
+
+  return tg("sendPhoto",{
+    chat_id:chatId,
+    photo:getCover(safeData),
+    caption:buildCard(safeData,"",id),
+    reply_markup: buildSwipeNav(id,type)
+  });
+}
+
+  // ================= SERIES =================
+  if(data.startsWith("tv_")){
+    const key = data.split("_")[1];
+    const seasons = SERIES_DB[key];
+
+    if(!seasons){
+      return tg("sendMessage",{
+        chat_id:chatId,
+        text:"❌ Keine Staffel vorhanden"
+      });
+    }
+
+    const buttons = Object.keys(seasons)
+      .sort((a,b)=>a-b)
+      .map(s => ([
+        {text:`📺 Staffel ${s}`,callback_data:`season_${key}_${s}`}
+      ]));
+
+    buttons.push([{text:"🏠 Menü",callback_data:"menu"}]);
+
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:"📺 Staffel wählen",
+      reply_markup:{inline_keyboard:buttons}
+    });
+  }
+
+  if(data.startsWith("season_")){
+    const [,key,season] = data.split("_");
+    const eps = SERIES_DB[key]?.[season];
+
+    if(!eps){
+      return tg("sendMessage",{
+        chat_id:chatId,
+        text:"❌ Keine Episoden vorhanden"
+      });
+    }
+
+    const buttons = Object.keys(eps)
+      .sort((a,b)=>a-b)
+      .map(ep => ([
+        {text:`🎬 Episode ${ep}`,callback_data:`episode_${key}_${season}_${ep}`}
+      ]));
+
+    buttons.push([
+      {text:"⬅️ Zurück",callback_data:`tv_${key}`},
+      {text:"🏠 Menü",callback_data:"menu"}
+    ]);
+
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:`📺 Staffel ${season}`,
+      reply_markup:{inline_keyboard:buttons}
+    });
+  }
+
+  if(data.startsWith("episode_")){
+    const [,key,season,ep] = data.split("_");
+    const item = SERIES_DB[key]?.[season]?.[ep];
+
+    if(!item){
+      return tg("sendMessage",{
+        chat_id:chatId,
+        text:"❌ Episode nicht gefunden"
+      });
+    }
+
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:`🎬 Episode ${ep}`,
+      reply_markup:{
+        inline_keyboard:[
+          [{text:"▶️ Stream",callback_data:`play_${item.display_id}`}],
+          [{text:"⬅️ Zurück",callback_data:`season_${key}_${season}`}],
+          [{text:"🏠 Menü",callback_data:"menu"}]
+        ]
+      }
+    });
+  }
+
+  // ================= PLAY =================
+  if(data.startsWith("play_")){
+    const id = data.replace("play_","");
+    const item = CACHE.find(x=>x.display_id===id);
+    return sendFileById(chatId,item);
+  }
+
+  return;
+}
+
+    // ================= START =================
+    if(msg?.text === "/start"){
+      return showMenu(msg.chat.id);
+    }
+
+    // ================= UPLOAD =================
+    if(msg?.document || msg?.video){
+      return handleUpload(msg);
+    }
+
+  }catch(e){
+    console.error(e);
+  }
+}); // 🔥 DAS HAT BEI DIR GEFEHLT
+
+// ================= START =================
+app.listen(process.env.PORT || 3000, ()=>{
+  console.log("🔥 FULL FINAL SYSTEM RUNNING");
+});
