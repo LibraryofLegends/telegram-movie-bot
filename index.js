@@ -206,6 +206,50 @@ function getAvailableGenres(){
 
 // ================= MEDIA HELPERS =================
 
+function getSmartLogoSettings(genres = [], rating = 0){
+
+  // Default (balanced)
+  let size = 60;
+  let opacity = 35;
+  let effect = "brightness:10";
+
+  const g = genres[0];
+
+  // 🎬 ACTION / DUNKEL
+  if([28,53].includes(g)){
+    opacity = 45;
+    effect = "brightness:20";
+  }
+
+  // 👻 HORROR (sehr dunkel)
+  if(g === 27){
+    opacity = 55;
+    effect = "brightness:30";
+  }
+
+  // 😂 COMEDY (hell)
+  if(g === 35){
+    opacity = 25;
+    effect = "contrast:-20";
+  }
+
+  // 🎭 DRAMA
+  if(g === 18){
+    opacity = 30;
+  }
+
+  // 👑 HIGH RATING → minimal stärker
+  if(rating >= 7.5){
+    opacity += 5;
+  }
+
+  return {
+    width: size,
+    opacity,
+    effect
+  };
+}
+
 function getVisualStyle(genres = [], rating = 0){
 
   const g = genres[0];
@@ -291,31 +335,34 @@ async function uploadToCloudinary(url, genres = [], rating = 0){
     if(rating >= 7.5){
       baseTransform.push({ effect: "contrast:25" });
     }
+    
+    const logo = getSmartLogoSettings(genres, rating);
 
     const res = await cloudinary.uploader.upload(url,{
       folder:"library_of_legends",
 
       transformation: [
 
-        // 🎬 BASIS LOOK
-        ...baseTransform,
+  // 🎬 KEIN CROP → Original behalten
+  // 🎬 KEIN BLUR → volle Schärfe
+  // 🎬 KEIN COLOR → Original Look
 
-        // 🧠 LOGO STEP 1 (laden)
-        {
-          overlay: "library_of_legendes_logo"
-        },
+  // 🧠 LOGO LADEN
+  {
+    overlay: "library_of_legendes_logo"
+  },
 
-        // 🧠 LOGO STEP 2 (platzieren)
-        {
-          width: 120,
-          opacity: 70,
-          gravity: "south_east",
-          x: 25,
-          y: 25,
-          flags: "layer_apply"
-        }
+  // 🎯 LOGO CLEAN EINSETZEN
+  {
+    width: 65,
+    opacity: 35,
+    gravity: "south_east",
+    x: 40,
+    y: 40,
+    flags: "layer_apply"
+  }
 
-      ]
+]
     });
 
     console.log("🖼 FINAL COVER:", res.secure_url);
