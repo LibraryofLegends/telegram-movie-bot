@@ -24,10 +24,45 @@ const TOKEN = process.env.TOKEN;
 const TMDB_KEY = process.env.TMDB_KEY;
 const CHANNEL_ID = process.env.CHANNEL_ID;
 const BOT_USERNAME = process.env.BOT_USERNAME || "LIBRARY_OF_LEGENDS_Bot";
+const GROUP_ID = -1002008329218;
+
+const THREADS = {
+  home: 622,
+  movies: 609,
+  series: 611,
+  trending: 612,
+  action: 613,
+  horror: 614,
+  comedy: 615,
+  drama: 616,
+  scifi: 617,
+  thriller: 618,
+  favorites: 619,
+  picks: 620,
+  continue: 624,
+  popular: 625
+};
+
+const SERIES_THREADS = {};
+
+const BANNERS = {
+
+  main: "AgACAgIAAxkBAAIIb2nztY3EVUMNWPCNUoNwNRpZgvekAAJeGWsb94aYSzrBsWsTwbUsAQADAgADdwADOwQ",
+
+  genres: {
+    28: "ACTION_FILE_ID",
+    27: "HORROR_FILE_ID",
+    35: "COMEDY_FILE_ID",
+    18: "DRAMA_FILE_ID",
+    53: "THRILLER_FILE_ID"
+  }
+
+};
 
 const DB_FILE = "films.json";
 const HISTORY_FILE = "history.json";
 const SERIES_DB_FILE = "series.json";
+const FAVORITES_FILE = "favorites.json";
 
 const USER_STATE = {};
 const TMDB_CACHE = {};
@@ -114,6 +149,32 @@ function readHistory(userId) {
   return JSON.parse(fs.readFileSync(HISTORY_FILE))[userId] || [];
 }
 
+function loadFavorites(){
+  if (!fs.existsSync(FAVORITES_FILE)) return {};
+  return JSON.parse(fs.readFileSync(FAVORITES_FILE));
+}
+
+function saveFavorites(data){
+  fs.writeFileSync(FAVORITES_FILE, JSON.stringify(data, null, 2));
+}
+
+function addFavorite(userId, item){
+  const fav = loadFavorites();
+  if(!fav[userId]) fav[userId] = [];
+
+  fav[userId] = [
+    item,
+    ...fav[userId].filter(x => x.display_id !== item.display_id)
+  ].slice(0,50);
+
+  saveFavorites(fav);
+}
+
+function getFavorites(userId){
+  const fav = loadFavorites();
+  return fav[userId] || [];
+}
+
 // ================= TELEGRAM =================
 async function tg(method, body) {
   try {
@@ -129,6 +190,49 @@ async function tg(method, body) {
 }
 
 // ================= HELPERS =================
+
+async function ensureSeriesThread(title){
+
+  const key = title.toLowerCase().replace(/\s/g,"_");
+
+  if(SERIES_THREADS[key]){
+    return SERIES_THREADS[key];
+  }
+
+  const res = await tg("createForumTopic",{
+    chat_id: GROUP_ID,
+    name: `📺 ${title}`
+  });
+
+  const threadId = res.result.message_thread_id;
+
+  SERIES_THREADS[key] = {
+    main: threadId,
+    seasons: {}
+  };
+
+  return SERIES_THREADS[key];
+}
+
+async function ensureSeasonThread(seriesKey, season){
+
+  const series = SERIES_THREADS[seriesKey];
+
+  if(series.seasons[season]){
+    return series.seasons[season];
+  }
+
+  const res = await tg("createForumTopic",{
+    chat_id: GROUP_ID,
+    name: `📀 Staffel ${season}`
+  });
+
+  const threadId = res.result.message_thread_id;
+
+  series.seasons[season] = threadId;
+
+  return threadId;
+}
 
 // 🎬 NETFLIX BANNER (MIT BADGES IM BILD)
 function getNetflixBannerWithBadges(data){
@@ -205,6 +309,23 @@ function getAvailableGenres(){
 
 
 // ================= MEDIA HELPERS =================
+function getDynamicBanner(type = "main", genre = null){
+
+  if(type === "genre" && genre && BANNERS.genres[genre]){
+    return BANNERS.genres[genre];
+  }
+
+  return BANNERS.main;
+}
+
+function getCollectionHero(items){
+
+  if(!items.length) return null;
+
+  const first = items[0];
+
+  return first.cover || null;
+}
 
 function getSmartLogoSettings(genres = [], rating = 0){
 
@@ -311,30 +432,28 @@ async function uploadToCloudinary(url, genres = [], rating = 0){
 
     // 🎬 SAFER BASE LOOK (keine riskanten Effekte)
     const baseTransform = [
-      { effect: "brightness:-10" },
-      { effect: "contrast:18" },
-      { effect: "sharpen:40" }
-    ];
+  { effect: "brightness:-10" },
+  { effect: "contrast:18" },
+  { effect: "sharpen:40" }
+];
 
-    // 🎨 LEICHTE GENRE OPTIK (OHNE RISIKO)
-    const g = genres?.[0];
+const g = genres?.[0];
 
-    if([28,53].includes(g)){ // Action / Thriller
-      baseTransform.push({ effect: "saturation:15" });
-    }
+if ([28, 53].includes(g)) {
+  baseTransform.push({ effect: "saturation:15" });
+}
 
-    if(g === 27){ // Horror
-      baseTransform.push({ effect: "saturation:-20" });
-    }
+if (g === 27) {
+  baseTransform.push({ effect: "saturation:-20" });
+}
 
-    if(g === 35){ // Comedy
-      baseTransform.push({ effect: "brightness:10" });
-    }
+if (g === 35) {
+  baseTransform.push({ effect: "brightness:10" });
+}
 
-    // 👑 HIGH RATING → minimaler Boost
-    if(rating >= 7.5){
-      baseTransform.push({ effect: "contrast:25" });
-    }
+if (rating >= 7.5) {
+  baseTransform.push({ effect: "contrast:25" });
+}
     
     const logo = getSmartLogoSettings(genres, rating);
 
@@ -343,19 +462,18 @@ async function uploadToCloudinary(url, genres = [], rating = 0){
 
       transformation: [
 
-  // 🎬 KEIN CROP → Original behalten
-  // 🎬 KEIN BLUR → volle Schärfe
-  // 🎬 KEIN COLOR → Original Look
+  // 🎬 BASE LOOK (wird jetzt wirklich angewendet)
+  ...baseTransform,
 
-  // 🧠 LOGO LADEN
+  // 🧠 LOGO OVERLAY LADEN
   {
     overlay: "library_of_legendes_logo"
   },
 
-  // 🎯 LOGO CLEAN EINSETZEN
+  // 🎯 LOGO POSITION & STYLE
   {
-    width: 65,
-    opacity: 35,
+    width: logo.width,
+    opacity: logo.opacity,
     gravity: "south_east",
     x: 40,
     y: 40,
@@ -422,11 +540,40 @@ function getTargetChannel(genres=[]){
   return CHANNELS.default;
 }
 
+// ================= THREAD ROUTING =================
+function getThreadByGenre(genres=[]){
+
+  if(genres.includes(28)) return THREADS.action;
+  if(genres.includes(27)) return THREADS.horror;
+  if(genres.includes(35)) return THREADS.comedy;
+  if(genres.includes(18)) return THREADS.drama;
+  if(genres.includes(878)) return THREADS.scifi;
+  if(genres.includes(53)) return THREADS.thriller;
+
+  return THREADS.movies;
+}
 
 // ================= LOCAL FILTER =================
 
 function getLocalByGenre(genreId){
   return CACHE.filter(x => x.genres?.includes(parseInt(genreId)));
+}
+
+function getCollectionItems(name){
+
+  return CACHE
+    .filter(x => x.collection === name)
+    .sort((a,b) => {
+
+      const orderA = a.collection_order || 0;
+      const orderB = b.collection_order || 0;
+
+      if(orderA !== orderB){
+        return orderA - orderB;
+      }
+
+      return (a.title || "").localeCompare(b.title || "");
+    });
 }
 
 
@@ -463,15 +610,75 @@ function parseFileName(name = "") {
   return { type: "movie", title: clean };
 }
 
-function cleanTitleAdvanced(name = "") {
+function ultraCleanTitle(name = "") {
+
   return name
-    .replace(/\.(mp4|mkv|avi)$/i, "")
-    .replace(/\b(1080p|720p|2160p|4k|uhd)\b/gi, "")
-    .replace(/\b(x264|x265|h264|h265)\b/gi, "")
-    .replace(/\b(bluray|web|webrip|webdl)\b/gi, "")
-    .replace(/\b(german|deutsch|dual|dl)\b/gi, "")
-    .replace(/S\d{1,2}E\d{1,2}/gi, "")
+
+    // =============================
+    // 🔥 REMOVE FILE EXTENSION
+    // =============================
+    .replace(/\.(mp4|mkv|avi|mov)$/i, "")
+
+    // =============================
+    // 🔥 REMOVE TELEGRAM / TAGS
+    // =============================
+    .replace(/@[\w\d_]+/g, "")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/\([^\)]*?(subs|dub|rip|1080|720)[^\)]*\)/gi, "")
+
+    // =============================
+    // 🔥 REMOVE DATES (ALLE FORMATE)
+    // =============================
+    .replace(/^\d{4}[.\-_ ]\d{2}[.\-_ ]\d{2}/, "")
+    .replace(/^\d{2}[.\-_ ]\d{2}[.\-_ ]\d{4}/, "")
+    .replace(/^\d{4}/, "")
+
+    // =============================
+    // 🔥 REMOVE RESOLUTION / CODECS
+    // =============================
+    .replace(/\b(2160p|1080p|720p|480p|4k|uhd)\b/gi, "")
+    .replace(/\b(x264|x265|h264|h265|hevc)\b/gi, "")
+    .replace(/\b(10bit|8bit)\b/gi, "")
+
+    // =============================
+    // 🔥 REMOVE SOURCE
+    // =============================
+    .replace(/\b(bluray|bdrip|brrip|web[-_. ]?dl|webrip|hdrip|dvdrip)\b/gi, "")
+
+    // =============================
+    // 🔥 REMOVE AUDIO
+    // =============================
+    .replace(/\b(german|deutsch|english|eng|dual|dl)\b/gi, "")
+    .replace(/\b(aac|dts|ac3|atmos|truehd)\b/gi, "")
+
+    // =============================
+    // 🔥 REMOVE SCENE TAGS
+    // =============================
+    .replace(/\b(proper|repack|extended|uncut|remastered)\b/gi, "")
+
+    // =============================
+    // 🔥 REMOVE RESOLUTION DIMENSIONS
+    // =============================
+    .replace(/\d{3,4}x\d{3,4}/g, "")
+
+    // =============================
+    // 🔥 REMOVE GROUP NAMES
+    // =============================
+    .replace(/-([A-Za-z0-9]+)$/g, "")
+
+    // =============================
+    // 🔥 NORMALIZE SEPARATORS
+    // =============================
     .replace(/[._\-]+/g, " ")
+
+    // =============================
+    // 🔥 REMOVE EXTRA NUMBERS FRONT
+    // =============================
+    .replace(/^\d+\s+/, "")
+
+    // =============================
+    // 🔥 FINAL CLEAN
+    // =============================
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -497,54 +704,62 @@ function detectSource(n=""){
 }
 
 // ================= EXTRA HELPERS =================
+function getCollectionOrder(title = ""){
 
-function getVisualStyle(genres = []){
+  const t = title.toLowerCase();
 
-  const g = genres[0];
+  let match = t.match(/(\d+)$/);
+  if(match) return parseInt(match[1]);
 
-  // 🎬 DEFAULT
-  let style = [
-    { effect: "brightness:-12" },
-    { effect: "contrast:18" },
-    { effect: "sharpen:40" }
+  match = t.match(/teil\s*(\d+)/);
+  if(match) return parseInt(match[1]);
+
+  match = t.match(/part\s*(\d+)/);
+  if(match) return parseInt(match[1]);
+
+  match = t.match(/chapter\s*(\d+)/);
+  if(match) return parseInt(match[1]);
+
+  match = t.match(/kapitel\s*(\d+)/);
+  if(match) return parseInt(match[1]);
+
+  return 1;
+}
+
+function detectCollection(title = ""){
+
+  const t = title.toLowerCase();
+
+  const patterns = [
+    { key:"john_wick", aliases:["john wick"] },
+    { key:"fast_furious", aliases:["fast furious","fast and furious"] },
+    { key:"harry_potter", aliases:["harry potter"] },
+    { key:"batman_nolan", aliases:["dark knight","batman begins"] },
+    { key:"avengers", aliases:["avengers"] }
   ];
 
-  // 🔥 ACTION / THRILLER
-  if([28, 53].includes(g)){
-    style = [
-      { effect: "brightness:-10" },
-      { effect: "contrast:25" },
-      { effect: "saturation:20" }
-    ];
+  for(const p of patterns){
+    for(const a of p.aliases){
+      if(t.includes(a)){
+        return p.key;
+      }
+    }
   }
 
-  // 👻 HORROR
-  if(g === 27){
-    style = [
-      { effect: "brightness:-25" },
-      { effect: "contrast:30" },
-      { effect: "saturation:-20" }
-    ];
+  let base = t.replace(/(\d+)$/, "").trim();
+
+  base = base
+    .replace(/teil\s*\d+/,"")
+    .replace(/part\s*\d+/,"")
+    .replace(/chapter\s*\d+/,"")
+    .replace(/kapitel\s*\d+/,"")
+    .trim();
+
+  if(base.length > 5){
+    return base.replace(/\s+/g,"_");
   }
 
-  // 😂 COMEDY
-  if(g === 35){
-    style = [
-      { effect: "brightness:10" },
-      { effect: "contrast:10" },
-      { effect: "saturation:25" }
-    ];
-  }
-
-  // 🎭 DRAMA
-  if(g === 18){
-    style = [
-      { effect: "brightness:-8" },
-      { effect: "contrast:15" }
-    ];
-  }
-
-  return style;
+  return null;
 }
 
 // 🎬 DYNAMISCHE GENRE BUTTONS (AUS DEINER DB)
@@ -573,20 +788,18 @@ function buildSwipeNav(id,type){
 
       [
         {text:"⬅️",callback_data:`prev_${id}_${type}`},
-        {text:"🎬 DETAILS",callback_data:`search_${id}_${type}`},
+        {text:"▶️ PLAY",callback_data:`play_${id}`},
         {text:"➡️",callback_data:`next_${id}_${type}`}
       ],
 
       [
-        {text:"▶️ SOFORT STARTEN",callback_data:`play_${id}`}
-      ],
-
-      [
+        {text:"⭐ Favorit",callback_data:`fav_${id}`},
         {text:"🔥 Ähnliche",callback_data:`sim_${id}_${type}`}
       ],
 
       [
-        {text:"🏠 Menü",callback_data:"menu"}
+        {text:"🏠 Menü",callback_data:"menu"},
+        {text:"🧠 Für dich",callback_data:"top_picks"}
       ]
     ]
   };
@@ -952,6 +1165,33 @@ function getSmartRecommendations(current, limit = 10){
   return localMatches.slice(0, limit);
 }
 
+function getTopPicks(userId){
+
+  const history = readHistory(userId);
+  if(!history.length) return [];
+
+  const genreCount = {};
+
+  for(const h of history){
+    const item = CACHE.find(x => x.display_id === h.id);
+    if(!item) continue;
+
+    for(const g of item.genres || []){
+      genreCount[g] = (genreCount[g] || 0) + 1;
+    }
+  }
+
+  const sortedGenres = Object.entries(genreCount)
+    .sort((a,b)=>b[1]-a[1])
+    .map(x => parseInt(x[0]));
+
+  const picks = CACHE.filter(x =>
+    x.genres?.some(g => sortedGenres.includes(g))
+  );
+
+  return picks.slice(0,10);
+}
+
 
 // 🎬 LOKALE REIHEN (AUS DEINER DB)
 function buildLocalRows(){
@@ -991,13 +1231,15 @@ async function showNetflixHome(chatId){
       });
     }
 
-    const first = trending[0];
+    const first = trending[Math.floor(Math.random() * trending.length)];
 
     const type = first.media_type === "tv" ? "tv" : "movie";
 
     const details = await getDetails(first.id, type) || first;
 
-    const banner = getNetflixBannerWithBadges(details);
+    const banner = details?.backdrop_path
+      ? `https://image.tmdb.org/t/p/original${details.backdrop_path}`
+      : getDynamicBanner("main");
 
     // 🎬 BIG NETFLIX HERO
     await tg("sendPhoto",{
@@ -1008,7 +1250,7 @@ async function showNetflixHome(chatId){
         inline_keyboard:[
 
           [
-            {text:"▶️ Play",callback_data:`play_${first.id}`},
+            {text:"🔍 Details",callback_data:`search_${first.id}_${type}`},
             {text:"➕ Merken",callback_data:`fav_${first.id}`}
           ],
 
@@ -1082,13 +1324,35 @@ async function showNetflixHome(chatId){
 
 // ================= UI =================
 
+async function showGenres(chatId){
+
+  await tg("sendPhoto",{
+    chat_id:chatId,
+    photo:getDynamicBanner("main"),
+    caption:"🎭 Kategorien"
+  });
+
+  const buttons = buildGenreButtons();
+
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:"Wähle ein Genre 👇",
+    reply_markup:{
+      inline_keyboard:[
+        ...buttons,
+        [{text:"🏠 Menü",callback_data:"menu"}]
+      ]
+    }
+  });
+}
+
 async function sendPosterRow(chatId, heading, list){
 
   if(!list || !list.length) return;
 
   await tg("sendMessage",{
     chat_id: chatId,
-    text: `🎬 ${heading}`
+    text: `🔥 ${heading}`
   });
 
   const slice = list.slice(0,5);
@@ -1104,31 +1368,40 @@ async function sendPosterRow(chatId, heading, list){
       caption: `🎬 ${title}`,
       reply_markup:{
         inline_keyboard:[
-          [{ text:"▶️", callback_data:`search_${item.id}_${type}` }]
+          [
+            { text:"▶️", callback_data:`search_${item.id}_${type}` },
+            { text:"🔥", callback_data:`sim_${item.id}_${type}` }
+          ]
         ]
       }
     });
   }
 }
-
+ 
 // 🎬 HAUPTMENÜ
 function showMenu(chatId){
 
-  return tg("sendMessage",{
+  return tg("sendPhoto",{
     chat_id:chatId,
-    text:`🎬 𝐋𝐈𝐁𝐑𝐀𝐑𝐘 𝐎𝐅 𝐋𝐄𝐆𝐄𝐍𝐃𝐒
+    photo:getDynamicBanner("main"),
+    caption:`🔥 𝐋𝐈𝐁𝐑𝐀𝐑𝐘 𝐎𝐅 𝐋𝐄𝐆𝐄𝐍𝐃𝐒
 
-Wähle deinen Bereich 👇`,
+Dein Streaming Hub 👇`,
     reply_markup:{
       inline_keyboard:[
 
         [
-          {text:"🏠 Home",callback_data:"home"},
-          {text:"🔥 Trending",callback_data:"net_trending"}
+          {text:"▶️ Weiter schauen",callback_data:"continue"}
         ],
 
         [
+          {text:"🔥 Trending",callback_data:"net_trending"},
           {text:"📈 Popular",callback_data:"net_popular"}
+        ],
+
+        [
+          {text:"🧠 Für dich",callback_data:"top_picks"},
+          {text:"⭐ Favoriten",callback_data:"favorites"}
         ],
 
         [
@@ -1136,11 +1409,8 @@ Wähle deinen Bereich 👇`,
           {text:"📺 Serien",callback_data:"browse_series"}
         ],
 
-        // 🔥 DYNAMISCHE GENRES
-        ...buildGenreButtons(),
-
         [
-          {text:"▶️ Weiter schauen",callback_data:"continue"}
+          {text:"🎭 Kategorien",callback_data:"open_genres"}
         ]
       ]
     }
@@ -1164,126 +1434,128 @@ async function sendResultsList(chatId, heading, list, page = 0){
   const start = page * perPage;
   const slice = list.slice(start, start + perPage);
 
-  // 🧠 STATE SPEICHERN (für Swipe etc.)
   USER_STATE[chatId] = {
     list,
     heading,
     page
   };
 
-  // 🎬 ITEMS RENDERN
   const buttons = [];
 
-for (let i = 0; i < slice.length; i += 2) {
+  for (let i = 0; i < slice.length; i += 2) {
 
-  const row = [];
+    const row = [];
 
-  const a = slice[i];
-  const b = slice[i + 1];
+    const a = slice[i];
+    const b = slice[i + 1];
 
-  if (a) {
-    row.push({
-      text: `🎬 ${a.title || a.name}`,
-      callback_data: `search_${a.id}_${a.media_type || "movie"}`
-    });
+    if (a) {
+      row.push({
+        text: `🎬 ${a.title || a.name}`,
+        callback_data: `search_${a.id}_${a.media_type || "movie"}`
+      });
+    }
+
+    if (b) {
+      row.push({
+        text: `🎬 ${b.title || b.name}`,
+        callback_data: `search_${b.id}_${b.media_type || "movie"}`
+      });
+    }
+
+    buttons.push(row);
   }
 
-  if (b) {
-    row.push({
-      text: `🎬 ${b.title || b.name}`,
-      callback_data: `search_${b.id}_${b.media_type || "movie"}`
-    });
-  }
-
-  buttons.push(row);
-}
-
-  // ================= NAVIGATION =================
-
-  const nav = [];
+  const navRow = [];
 
   if(page > 0){
-    nav.push({
-      text:"⬅️ Zurück",
-      callback_data:`page_${page-1}`
-    });
+    navRow.push({ text:"⬅️", callback_data:`page_${page-1}` });
   }
 
   if(page < totalPages - 1){
-    nav.push({
-      text:"➡️ Weiter",
-      callback_data:`page_${page+1}`
-    });
+    navRow.push({ text:"➡️", callback_data:`page_${page+1}` });
   }
 
   return tg("sendMessage",{
-  chat_id:chatId,
-  text:`📂 ${heading}`,
-  reply_markup:{
-    inline_keyboard:[
-      ...buttons,
-      [
-        {text:"⬅️",callback_data:`page_${page-1}`},
-        {text:"➡️",callback_data:`page_${page+1}`}
-      ],
-      [
-        {text:"🏠 Menü",callback_data:"menu"}
+    chat_id:chatId,
+    text:`📂 ${heading}`,
+    reply_markup:{
+      inline_keyboard:[
+        ...buttons,
+        ...(navRow.length ? [navRow] : []),
+        [{text:"🏠 Menü",callback_data:"menu"}]
       ]
-    ]
-  }
-});
+    }
+  });
 }
 
 // ================= UPLOAD =================
 async function handleUpload(msg){
 
   const file = msg.document || msg.video;
-  const width = msg.video?.width;
-  const height = msg.video?.height;
-  if(!file) return;
+const width = msg.video?.width;
+const height = msg.video?.height;
+if(!file) return;
+
+// 🔥 DUPLICATE CHECK (HIER HIN!)
+const exists = CACHE.find(x => x.file_id === file.file_id);
+
+if(exists){
+  return tg("sendMessage",{
+    chat_id: msg.chat.id,
+    text: "⚠️ Datei bereits vorhanden"
+  });
+}
 
   const fileName = file.file_name || "";
 
   const parsed = parseFileName(fileName);
+  
+  const isSeries = parsed.type === "tv";
 
   // 🔥 JAHR EXTRAHIEREN
   const yearMatch = fileName.match(/(19|20)\d{2}/);
   const fileYear = yearMatch ? parseInt(yearMatch[0]) : null;
 
-  // 🔥 CLEAN TITLE (weniger aggressiv)
-  const clean = parsed.title
-  .replace(/\.(mp4|mkv|avi)$/i, "")
-  .replace(/@.+/g, "")
-  .replace(/\b(2160p|1080p|720p|4k)\b/gi, "")
-  .replace(/\b(x264|x265|h264|h265)\b/gi, "")
-  .replace(/\b(bluray|web|webrip|webdl)\b/gi, "")
-  .replace(/\b(german|deutsch|dual|dl)\b/gi, "")
-  .replace(/\b(truehd|aac|dts|atmos)\b/gi, "")
-  .replace(/\b(extended|uncut|remastered)\b/gi, "")
-  .replace(/\b(proper|repack)\b/gi, "")
-  .replace(/\d{3,4}x\d{3,4}/g, "")
-  .replace(/\s+/g, " ")
-  .trim();
+  // ================= TMDB MATCHING BLOCK =================
 
-let result = await searchTMDBUltra(
-  clean,
+// 🔥 CLEAN TITLE
+const clean = ultraCleanTitle(fileName);
+console.log("🧹 CLEAN TITLE:", clean);
+
+// 🔥 SEARCH VARIANTE (Top 3 Wörter)
+const searchTitle = clean.split(" ").slice(0, 3).join(" ");
+
+// 🔍 MAIN SEARCH
+let result = null;
+
+result = await searchTMDBUltra(
+  searchTitle,
   fileYear,
   parsed.type === "tv" ? "tv" : "movie"
 );
 
-// 🔁 FALLBACK 1 (SHORT)
-if(!result){
-  const short = clean.split(" ").slice(0,2).join(" ");
+// 🔁 FALLBACK 1 (FULL)
+if (!result) {
+  result = await searchTMDBUltra(
+    clean,
+    fileYear,
+    parsed.type === "tv" ? "tv" : "movie"
+  );
+}
 
-  result = await searchTMDBAdvanced(
+// 🔁 FALLBACK 2 (SHORT)
+if (!result) {
+  const short = clean.split(" ").slice(0, 2).join(" ");
+  result = await searchTMDBUltra(
     short,
     fileYear,
     parsed.type === "tv" ? "tv" : "movie"
   );
 }
 
-// 🔁 FALLBACK 2 (DIRECT API)
-if(!result){
+// 🔁 FALLBACK 3 (DIRECT API)
+if (!result) {
   const search = await tmdbFetch(
     `https://api.themoviedb.org/3/search/${parsed.type}?api_key=${TMDB_KEY}&query=${encodeURIComponent(clean)}&language=de-DE`
   );
@@ -1291,50 +1563,23 @@ if(!result){
   result = search?.results?.[0] || null;
 }
 
-// 🔁 FALLBACK 3 (OHNE JAHR)
-if(!result){
-  result = await searchTMDBAdvanced(
-    clean,
-    null,
-    parsed.type === "tv" ? "tv" : "movie"
-  );
-}
-
 // ❗ FINAL FAIL SAFE
-if(!result){
+if (!result) {
   console.log("❌ FINAL FAIL:", clean);
 }
 
-// TYPE FILTER
-if(result && result.media_type){
-  if(parsed.type === "tv" && result.media_type !== "tv") result = null;
-  if(parsed.type === "movie" && result.media_type !== "movie") result = null;
-}
-
-// FALLBACK
-if(!result){
-  const short = clean.split(" ").slice(0,2).join(" ");
-
-  result = await searchTMDBAdvanced(
-    short,
-    fileYear,
-    parsed.type === "tv" ? "tv" : "movie"
-  );
-}
-
-if(!result){
-  console.log("❌ FINAL FAIL:", clean);
-}
-
-// 🔥 HIER EINFÜGEN 👇
+// ❗ DEBUG
 console.log("🎯 FILE:", fileName);
 console.log("🔎 CLEAN:", clean);
-console.log("🎬 MATCH:", result?.title || result?.name);
+console.log("🎬 MATCH:", result?.title || result?.name || "NOT FOUND");
 
   let details = null;
 
   if(result?.id){
-    const type = result.media_type === "tv" ? "tv" : "movie";
+    const type =
+    result.media_type === "tv" || parsed.type === "tv"
+      ? "tv"
+      : "movie";
     details = await getDetails(result.id, type);
   }
 
@@ -1357,19 +1602,8 @@ if(result?.genre_ids){
 const id = generateNextId();
 const categoryId = generateCategoryId(genreIds);
 
-const item = {
-  display_id:id,
-  category_id: categoryId,
-  file_id:file.file_id,
-  media_type: result?.media_type || "movie",
-  genres: genreIds
-};
-
-  CACHE.unshift(item);
-  saveDB(CACHE);
-
-  // ================= COVER FIX =================
-  let cover = getCover(safeData);
+// ================= COVER =================
+let cover = getCover(safeData);
 
 if(!cover){
   cover = buildStyledCover(parsed.title);
@@ -1381,28 +1615,10 @@ cover = await uploadToCloudinary(
   safeData.vote_average || 0
 );
 
-cover += "?v=" + Date.now();
+cover += "?v=1";
 
-try{
-  if(!cover || cover.includes("null")){
-    throw new Error("Invalid cover");
-  }
-
-  const res = await fetch(cover);
-  if(!res.ok){
-    throw new Error("Cover fetch failed");
-  }
-
-}catch{
-  cover = "https://dummyimage.com/500x750/000/fff&text=No+Image";
-}
-
-  if(!details && result){
-    details = result;
-  }
-
-  const targetChannel = getTargetChannel(genreIds);
-  const caption = buildCard(
+// ================= CAPTION =================
+const caption = buildCard(
   safeData,
   fileName,
   id,
@@ -1411,28 +1627,177 @@ try{
   height
 );
 
-  try{
-    await tg("sendPhoto",{
-      chat_id: targetChannel,
-      photo: cover,
-      caption: caption,
-      reply_markup:{
-        inline_keyboard:[
-          [{text:"▶️ Stream", url: playerUrl("play", id)}]
-        ]
-      }
-    });
+if(isSeries){
 
-  }catch(err){
-    await tg("sendMessage",{
-      chat_id: targetChannel,
-      text: caption
-    });
+  const cleanTitle = safeData.title || parsed.title;
+
+  const seriesKey = cleanTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g,"_");
+
+  const seriesThread = await ensureSeriesThread(cleanTitle);
+
+  const seasonThread = await ensureSeasonThread(
+    seriesKey,
+    parsed.season
+  );
+
+  if(!SERIES_DB[seriesKey]) SERIES_DB[seriesKey] = {};
+  if(!SERIES_DB[seriesKey][parsed.season]) SERIES_DB[seriesKey][parsed.season] = {};
+
+  SERIES_DB[seriesKey][parsed.season][parsed.episode] = {
+    file_id: file.file_id,
+    display_id: id
+  };
+
+  saveSeriesDB(SERIES_DB);
+
+  await tg("sendPhoto",{
+    chat_id: GROUP_ID,
+    message_thread_id: seasonThread,
+    photo: cover,
+    caption: caption,
+    reply_markup:{
+      inline_keyboard:[
+        [{ text:"▶️ Episode", callback_data:`play_${id}` }],
+        [{ text:"📺 Serie", callback_data:`series_${seriesKey}` }]
+      ]
+    }
+  });
+
+  return;
+}
+
+  // ================= COVER FIX =================
+// 🎬 COVER
+let cover = getCover(safeData);
+
+if(!cover){
+  cover = buildStyledCover(parsed.title);
+}
+
+cover = await uploadToCloudinary(
+  cover,
+  genreIds,
+  safeData.vote_average || 0
+);
+
+cover += "?v=1";
+
+// ================= COLLECTION + ORDER =================
+
+// 🎬 COLLECTION NAME ERMITTELN
+let collectionName = null;
+
+// 1. TMDB Collection (beste Quelle)
+if (safeData.belongs_to_collection?.name) {
+  collectionName = safeData.belongs_to_collection.name;
+}
+
+// 2. FALLBACK → eigene Detection
+if (!collectionName) {
+  collectionName = detectCollection(
+    safeData.title || clean
+  );
+}
+
+// 3. CLEAN (wichtig für Buttons + IDs)
+if (collectionName) {
+  collectionName = collectionName
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/gi, "")
+    .toLowerCase();
+    
+    collectionName = collectionName.slice(0, 40).trim();
+}
+
+// 🔢 COLLECTION ORDER (Teil 1,2,3...)
+const order = getCollectionOrder(
+  safeData.title || clean
+);
+
+const item = {
+  display_id: id,
+  tmdb_id: result?.id || null,
+  title: safeData.title || clean,
+  collection: collectionName,        // ✅ HIER WIRD ES VERWENDET
+  collection_order: order,           // ✅ SORTIERUNG
+  category_id: categoryId,
+  file_id: file.file_id,
+  media_type: isSeries ? "tv" : "movie",
+  genres: genreIds,
+  cover: cover
+};
+
+// ✅ UND JETZT ERST SPEICHERN
+CACHE.unshift(item);
+saveDB(CACHE);
+
+if(!cover || cover.includes("null")){
+  cover = "https://dummyimage.com/500x750/000/fff&text=No+Image";
+}
+
+  if(!details && result){
+    details = result;
   }
+
+// 🎯 BUTTONS
+const buttons = [
+  [{ text:"▶️ Stream", url: playerUrl("play", id) }],
+  [{ text:"🔥 Ähnliche", url: playerUrl("sim", id) }],
+  [{ text:"🏠 Menü", url: `https://t.me/${BOT_USERNAME}` }]
+];
+
+if(item.collection){
+  buttons.push([
+    {
+      text:"🎞 Collection",
+      url: playerUrl("collection", item.collection)
+    }
+  ]);
+}
+
+// 🎯 THREAD
+const threadId = isSeries
+  ? THREADS.series
+  : getThreadByGenre(genreIds);
+
+// ================= SEND =================
+
+// 📺 CHANNEL
+await tg("sendPhoto",{
+  chat_id: targetChannel,
+  photo: cover,
+  caption: caption,
+  reply_markup:{
+    inline_keyboard:[
+      [
+        {
+          text:"💬 Zum Hub",
+          url:"https://t.me/LibraryOfLegendsHubs"
+        }
+      ]
+    ]
+  }
+});
+
+// 💬 GROUP THREAD
+await tg("sendPhoto",{
+  chat_id: GROUP_ID,
+  message_thread_id: threadId,
+  photo: cover,
+  caption: caption,
+  reply_markup:{
+    inline_keyboard: buttons
+  }
+});
 
   return tg("sendMessage",{
     chat_id: msg.chat.id,
-    text: "✅ Upload verarbeitet & gepostet"
+    text: `✅ ${isSeries ? "Serie" : "Film"} gespeichert
+
+🎬 ${safeData.title || clean}
+🆔 ${id}`
   });
 }
 
@@ -1443,67 +1808,142 @@ app.post(`/bot${TOKEN}`, async (req, res) => {
   const body = req.body;
   const msg = body.message;
 
+  // 🔥 HIER EINFÜGEN
+  console.log("MSG DEBUG:", JSON.stringify(msg, null, 2));
+
   try {
 
     // ================= CALLBACK =================
     if (body.callback_query) {
 
-      const data = body.callback_query.data;
-      const chatId = body.callback_query.message.chat.id;
+  const data = body.callback_query.data;
+  const chatId = body.callback_query.message.chat.id;
 
-      await tg("answerCallbackQuery", {
-        callback_query_id: body.callback_query.id
-      });
+  await tg("answerCallbackQuery", {
+    callback_query_id: body.callback_query.id
+  });
 
-      if (data === "home") {
-        return showNetflixHome(chatId);
-      }
+  // ================= BASIC NAV =================
 
-      if (data === "net_trending") {
-        return sendResultsList(chatId, "🔥 Trending", await getTrending(), 0);
-      }
-
-      if (data === "net_popular") {
-        return sendResultsList(chatId, "📈 Popular", await getPopular(), 0);
-      }
-
-      if (data === "browse_movies") {
-        return sendResultsList(chatId, "🎬 Filme", await getPopular(), 0);
-      }
-
-      if (data === "browse_series") {
-        const keys = Object.keys(SERIES_DB);
-
-        if (!keys.length) {
-          return tg("sendMessage",{ chat_id: chatId, text: "❌ Keine Serien vorhanden" });
-        }
-
-        const buttons = keys.map(k => ([
-  {
-    text: `📺 ${k.replace(/_/g, " ")}`,
-    callback_data: `tv_${k}`
+  if (data === "home") {
+    return showNetflixHome(chatId);
   }
-]));
 
-        buttons.push([{ text: "🏠 Menü", callback_data: "menu" }]);
+  if (data === "net_trending") {
 
-        return tg("sendMessage",{
-          chat_id: chatId,
-          text: "📺 Serien",
-          reply_markup:{ inline_keyboard: buttons }
-        });
+  const list = await getTrending();
+
+  await tg("sendMessage",{
+    chat_id: GROUP_ID,
+    message_thread_id: THREADS.trending,
+    text: "🔥 Trending"
+  });
+
+  return sendResultsList(
+    GROUP_ID,
+    "🔥 Trending",
+    list,
+    0
+  );
+}
+
+  if (data === "net_popular") {
+    return sendResultsList(chatId, "📈 Popular", await getPopular(), 0);
+  }
+
+  if (data === "browse_movies") {
+
+  return sendResultsList(
+    GROUP_ID,
+    "🎬 Filme",
+    CACHE,
+    0
+  );
+}
+
+  if (data === "browse_series") {
+
+  const list = [];
+
+  for (const [title, seasons] of Object.entries(SERIES_DB)) {
+    for (const [season, episodes] of Object.entries(seasons)) {
+      for (const [episode, data] of Object.entries(episodes)) {
+
+        list.push({
+  id: data.display_id,
+  display_id: data.display_id, // 🔥 FIX
+  title: `${title.replace(/_/g," ")} • S${season}E${episode}`,
+  media_type: "tv"
+});
+
       }
+    }
+  }
 
-      if (data === "menu") {
-        return showMenu(chatId);
-      }
+  if(!list.length){
+    return tg("sendMessage",{
+      chat_id: chatId,
+      text: "❌ Keine Serien vorhanden"
+    });
+  }
 
-      if (data === "continue") {
+  return sendResultsList(
+    chatId,
+    "📺 Serien",
+    list,
+    0
+  );
+}
+
+  if (data === "menu") {
+    return showMenu(chatId);
+  }
+  
+  if (data === "open_genres") {
+    return showGenres(chatId);
+  }
+
+  // ⭐ FAVORITEN
+if (data === "favorites") {
+
+  return sendResultsList(
+    chatId,
+    "⭐ Deine Favoriten",
+    getFavorites(chatId),
+    0
+  );
+}
+
+// 🧠 TOP PICKS
+if (data === "top_picks") {
+
+  const picks = getTopPicks(chatId);
+
+  if(!picks.length){
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:"❌ Noch keine Daten"
+    });
+  }
+
+  return sendResultsList(
+    chatId,
+    "🧠 Für dich",
+    picks,
+    0
+  );
+}
+
+// ▶️ CONTINUE
+if (data === "continue") {
 
   const history = readHistory(chatId);
 
   if (!history.length) {
-    return tg("sendMessage",{ chat_id: chatId, text: "❌ Kein Verlauf vorhanden" });
+    return tg("sendMessage",{
+      chat_id: chatId,
+      text: "❌ Kein Verlauf vorhanden"
+    });
   }
 
   const last = history[0];
@@ -1520,103 +1960,302 @@ app.post(`/bot${TOKEN}`, async (req, res) => {
   });
 }
 
-      if (data.startsWith("genre_") && !data.startsWith("genre_local_")) {
-        const genre = data.split("_")[1];
-        return sendResultsList(chatId, "📂 Kategorie", await getByGenre(genre), 0);
-      }
+  // ================= GENRE =================
 
-      if (data.startsWith("genre_local_")) {
-        const genre = data.split("_")[2];
-        return sendResultsList(chatId, "📂 Deine Filme", getLocalByGenre(genre), 0);
-      }
+  if (data.startsWith("genre_") && !data.startsWith("genre_local_")) {
 
-      if (data === "movies_az") {
-        return sendResultsList(chatId, "🔤 A–Z", sortAZ(await getPopular()), 0);
-      }
+  const genre = data.split("_")[1];
 
-      if (data.startsWith("page_")) {
-        const page = parseInt(data.split("_")[1]);
-        const state = USER_STATE[chatId];
-        if (!state) return;
-        return sendResultsList(chatId, state.heading, state.list, page);
-      }
+  await tg("sendPhoto",{
+    chat_id:chatId,
+    photo:getDynamicBanner("genre", genre),
+    caption:`🔥 Kategorie`
+  });
 
-      if (data.startsWith("sim_")) {
-
-  const [, id, type] = data.split("_");
-
-  const details = await getDetails(id, type);
-  const safeData = details || {};
-
-  const smart = getSmartRecommendations(safeData);
-
-  if(smart.length){
-    return sendResultsList(chatId, "🔥 Für dich", smart, 0);
-  }
-
-  const res = await tmdbFetch(
-    `https://api.themoviedb.org/3/${type}/${id}/similar?api_key=${TMDB_KEY}`
+  return sendResultsList(
+    chatId,
+    "📂 Kategorie",
+    await getByGenre(genre),
+    0
   );
-
-  return sendResultsList(chatId, "🔥 Ähnliche", res?.results || [], 0);
 }
 
-      if (data.startsWith("next_") || data.startsWith("prev_")) {
-        const [dir, id, type] = data.split("_");
-        const state = USER_STATE[chatId];
-        if (!state) return;
+  if (data.startsWith("genre_local_")) {
 
-        const list = state.list;
-        const index = list.findIndex(x => String(x.id) === id);
-        if (index === -1) return;
+  const genre = data.split("_")[2];
 
-        const newIndex = dir === "next" ? index + 1 : index - 1;
-        if (!list[newIndex]) return;
+  // 🔥 BANNER SENDEN
+  await tg("sendPhoto",{
+    chat_id:chatId,
+    photo:getDynamicBanner("genre", genre),
+    caption:`🎬 ${GENRE_MAP[genre] || "Kategorie"}`
+  });
 
-        const item = list[newIndex];
-        const details = await getDetails(item.id, type);
-        const safeData = details || item || {};
+  return sendResultsList(
+    chatId,
+    "📂 Deine Filme",
+    getLocalByGenre(genre),
+    0
+  );
+}
 
-        return tg("sendPhoto",{
-          chat_id: chatId,
-          photo: getCover(safeData),
-          caption: buildCard(safeData, "", item.id),
-          reply_markup: buildSwipeNav(item.id, type)
-        });
-      }
+  if (data === "movies_az") {
+    return sendResultsList(chatId, "🔤 A–Z", sortAZ(await getPopular()), 0);
+  }
 
-      if (data.startsWith("search_")) {
-        const [, id, type] = data.split("_");
-        const details = await getDetails(id, type);
-        const safeData = details || {};
+  // ================= PAGINATION =================
 
-        return tg("sendPhoto",{
-          chat_id: chatId,
-          photo: getBanner(safeData),
-          caption: buildNetflixBanner(safeData),
-          reply_markup: buildSwipeNav(id, type)
-        });
-      }
+  if (data.startsWith("page_")) {
+    const page = parseInt(data.split("_")[1]);
+    const state = USER_STATE[chatId];
+    if (!state) return;
 
-      if (data.startsWith("play_")) {
+    return sendResultsList(chatId, state.heading, state.list, page);
+  }
 
-  const id = data.replace("play_", "");
+  // ================= SIMILAR =================
+
+  if (data.startsWith("sim_")) {
+
+    const [, id, type] = data.split("_");
+
+    const details = await getDetails(id, type);
+    const safeData = details || {};
+
+    const smart = getSmartRecommendations(safeData);
+
+    if(smart.length){
+      return sendResultsList(chatId, "🔥 Für dich", smart, 0);
+    }
+
+    const res = await tmdbFetch(
+      `https://api.themoviedb.org/3/${type}/${id}/similar?api_key=${TMDB_KEY}`
+    );
+
+    return sendResultsList(chatId, "🔥 Ähnliche", res?.results || [], 0);
+  }
+
+  // ================= SWIPE =================
+
+  if (data.startsWith("next_") || data.startsWith("prev_")) {
+
+    const [dir, id, type] = data.split("_");
+    const state = USER_STATE[chatId];
+    if (!state) return;
+
+    const list = state.list;
+    const index = list.findIndex(x => String(x.id) === id);
+    if (index === -1) return;
+
+    const newIndex = dir === "next" ? index + 1 : index - 1;
+    if (!list[newIndex]) return;
+
+    const item = list[newIndex];
+    const details = await getDetails(item.id, type);
+    const safeData = details || item || {};
+
+    return tg("sendPhoto",{
+      chat_id: chatId,
+      photo: getCover(safeData),
+      caption: buildCard(safeData, "", item.id),
+      reply_markup: buildSwipeNav(item.id, type)
+    });
+  }
+
+  // ================= PLAY =================
+
+if (data.startsWith("fav_")) {
+
+  const id = data.replace("fav_", "");
   const item = CACHE.find(x => x.display_id === id);
 
   if(!item){
     return tg("sendMessage",{ chat_id:chatId, text:"❌ Nicht gefunden" });
   }
 
-  await tg("sendMessage",{
-    chat_id:chatId,
-    text:"🎬 Starte Stream..."
-  });
+  addFavorite(chatId, item);
 
-  return sendFileById(chatId,item);
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:"⭐ Zu Favoriten hinzugefügt"
+  });
 }
 
-return;
+  if (data.startsWith("play_")) {
 
+    const id = data.replace("play_", "");
+    const item = CACHE.find(x => x.display_id === id);
+
+    if(!item){
+      return tg("sendMessage",{ chat_id:chatId, text:"❌ Nicht gefunden" });
+    }
+
+    await tg("sendMessage",{
+      chat_id:chatId,
+      text:"🎬 Starte Stream..."
+    });
+
+    return sendFileById(chatId,item);
+  }
+  
+  // ================= SERIES SYSTEM =================
+
+if (data.startsWith("series_")) {
+
+  const key = data.replace("series_","");
+  const series = SERIES_DB[key];
+
+  if(!series){
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:"❌ Serie nicht gefunden"
+    });
+  }
+
+  const buttons = [];
+
+  for(const season of Object.keys(series)){
+    buttons.push([
+      {
+        text:`📀 Staffel ${season}`,
+        callback_data:`season_${key}_${season}`
+      }
+    ]);
+  }
+
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:`📺 ${key.replace(/_/g," ").toUpperCase()}`,
+    reply_markup:{
+      inline_keyboard:[
+        ...buttons,
+        [{text:"🏠 Menü",callback_data:"menu"}]
+      ]
+    }
+  });
+}
+
+if (data.startsWith("season_")) {
+
+  const [, key, season] = data.split("_");
+
+  const episodes = SERIES_DB[key]?.[season];
+
+  if(!episodes){
+    return tg("sendMessage",{
+      chat_id:chatId,
+      text:"❌ Keine Episoden"
+    });
+  }
+
+  const buttons = Object.entries(episodes)
+    .sort((a,b)=>a[0]-b[0])
+    .map(([ep,data]) => ([
+      {
+        text:`▶️ Folge ${ep}`,
+        callback_data:`play_${data.display_id}`
+      }
+    ]));
+
+  return tg("sendMessage",{
+    chat_id:chatId,
+    text:`📀 Staffel ${season}`,
+    reply_markup:{
+      inline_keyboard:[
+        ...buttons,
+        [{text:"🔙 Serie",callback_data:`series_${key}`}]
+      ]
+    }
+  });
+}
+
+  // ================= COLLECTION =================
+
+  if (data.startsWith("collection_")) {
+
+    const name = data.replace("collection_", "");
+    const items = getCollectionItems(name);
+
+    if(!items.length){
+      return tg("sendMessage",{
+        chat_id: chatId,
+        text: "❌ Keine Collection gefunden"
+      });
+    }
+
+    const hero = getCollectionHero(items);
+
+    if(hero){
+  await tg("sendPhoto",{
+    chat_id: chatId,
+    photo: hero,
+    caption: `🎞 COLLECTION\n${name.toUpperCase()}`,
+    reply_markup:{
+      inline_keyboard:[
+        [{text:"▶️ Alle abspielen", callback_data:`play_${items[0].display_id}`}]
+      ]
+    }
+  });
+}
+
+    const featured = items[0];
+
+    await tg("sendMessage",{
+      chat_id: chatId,
+      text:`⭐ Highlight\n🎬 ${featured.title}`,
+      reply_markup:{
+        inline_keyboard:[
+          [{text:"▶️ Jetzt abspielen", callback_data:`play_${featured.display_id}`}]
+        ]
+      }
+    });
+
+    for(let i = 1; i < items.length; i++){
+
+      const item = items[i];
+
+      await tg("sendPhoto",{
+        chat_id: chatId,
+        photo: item.cover || "https://dummyimage.com/500x750/000/fff&text=No+Image",
+        caption: `🎬 ${item.title}`,
+        reply_markup:{
+          inline_keyboard:[
+            [{text:"▶️ Abspielen", callback_data:`play_${item.display_id}`}]
+          ]
+        }
+      });
+    }
+
+    return tg("sendMessage",{
+      chat_id: chatId,
+      text:"🏠 Navigation",
+      reply_markup:{
+        inline_keyboard:[
+          [{text:"🏠 Menü", callback_data:"menu"}]
+        ]
+      }
+    });
+  }
+
+  // ================= SEARCH (FIXED POSITION) =================
+
+  if (data.startsWith("search_")) {
+
+    const [, id, type] = data.split("_");
+
+    const details = await getDetails(id, type);
+    const safeData = details || {};
+
+    return tg("sendPhoto",{
+      chat_id: chatId,
+      photo: getBanner(safeData),
+      caption: buildNetflixBanner(safeData),
+      reply_markup: buildSwipeNav(id, type)
+    });
+  }
+
+  // ✅ GANZ WICHTIG → verhindert Folgefehler
+  return;
 }
     
   // ================= COMMANDS =================
@@ -1634,13 +2273,87 @@ if (msg?.text?.startsWith("/delete")) {
   });
 }
 
-    if (msg?.text === "/start") {
-      return showMenu(msg.chat.id);
+
+// 🔥 HIER DEIN NEUER START BLOCK
+if (msg?.text?.startsWith("/start")) {
+  
+  if (msg?.text === "/test") {
+
+  return tg("sendMessage",{
+    chat_id: GROUP_ID,
+    message_thread_id: 609,
+    text: "TEST THREAD"
+  });
+}
+
+  const param = msg.text.split(" ")[1];
+
+  console.log("START PARAM:", param); // 🔥 DEBUG
+
+  if(param){
+
+    const [action, id] = param.split("_");
+    
+    if(action === "collection"){
+
+  const items = getCollectionItems(id);
+
+  if(!items.length){
+    return tg("sendMessage",{
+      chat_id: msg.chat.id,
+      text:"❌ Keine Collection gefunden"
+    });
+  }
+
+  for(const item of items){
+    await tg("sendPhoto",{
+      chat_id: msg.chat.id,
+      photo: item.cover,
+      caption:`🎬 ${item.title}`,
+      reply_markup:{
+        inline_keyboard:[
+          [{ text:"▶️ Play", callback_data:`play_${item.display_id}` }]
+        ]
+      }
+    });
+  }
+
+  return;
+}
+
+    // ▶️ STREAM
+    if(action === "play"){
+      const item = CACHE.find(x => x.display_id === id);
+      return sendFileById(msg.chat.id, item);
     }
 
-    if (msg?.document || msg?.video) {
-      return handleUpload(msg);
+    // 🔥 ÄHNLICHE
+    if(action === "sim"){
+      const item = CACHE.find(x => x.display_id === id);
+
+      if(!item){
+        return tg("sendMessage",{
+          chat_id:msg.chat.id,
+          text:"❌ Nicht gefunden"
+        });
+      }
+
+      const fakeData = { genres: item.genres };
+      const list = getSmartRecommendations(fakeData);
+
+      return sendResultsList(msg.chat.id, "🔥 Ähnliche", list, 0);
     }
+  }
+
+  // 🏠 FALLBACK
+  return showMenu(msg.chat.id);
+}
+
+
+// Upload bleibt unverändert
+if (msg?.document || msg?.video) {
+  return handleUpload(msg);
+}
 
   } catch (e) {
     console.error("❌ WEBHOOK ERROR:", e.message, e.stack);
